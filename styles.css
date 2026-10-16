@@ -1,41 +1,42 @@
-:root{--brand:#2979FF;--action:#2169E0;--action-p:#185BC8;--ink:#142033;--muted:#5B677A;--surface:#F5F7FA;--border:#D8DFE9;--white:#FFF;--disabled:#E8EDF4;--disabled-ink:#657184;--error:#B42318;--success:#237A4A;--success-s:#EDF7F0;--r:12px;--pm:28px;--fg:20px;--sg:12px;--lg:8px;--sec:40px}
-*{box-sizing:border-box}html,body{margin:0}body{font-family:"PingFang SC",-apple-system,"Noto Sans CJK SC",sans-serif;background:var(--white);color:var(--ink);font-size:16px;line-height:26px;padding-bottom:84px}
-a{color:var(--action);text-decoration:none}
-.nav{position:sticky;top:0;z-index:5;background:var(--white);height:48px;display:flex;align-items:center;justify-content:center;font:600 17px/24px "PingFang SC",sans-serif;border-bottom:1px solid var(--border)}
-.nav .back{position:absolute;left:4px;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-weight:400}
-.wrap{padding:16px}.wrap.form{padding:var(--sec) var(--pm) 16px}
-.h1{font:600 30px/42px "PingFang SC",sans-serif;margin:8px 0 var(--fg)}
-.sec{border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:var(--sg)}
-.sec h3{margin:0 0 8px;font:500 14px/22px "PingFang SC",sans-serif;color:var(--muted)}
-.row{display:flex;justify-content:space-between;gap:12px;padding:4px 0}.row>span:first-child{color:var(--muted)}.row b{font-weight:400;text-align:right}
-.helper{font-size:14px;line-height:22px;color:var(--muted)}
-.tag{display:inline-block;padding:0 8px;border-radius:6px;font-size:14px;line-height:22px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
-.tag.on{color:var(--action);border-color:var(--action)}.tag.ok{color:var(--success);background:var(--success-s);border-color:transparent}.tag.warn{color:var(--ink);background:var(--surface);border-color:transparent}.tag.void{text-decoration:line-through}
-.tag.tbd{color:var(--error);border-color:var(--error);font-size:12px;line-height:18px;padding:0 6px;margin-left:6px;vertical-align:middle}
-.status{border-radius:var(--r);padding:16px;margin-bottom:var(--sg);background:var(--surface)}.status .t{font:600 21px/30px "PingFang SC",sans-serif}.status .s{color:var(--muted);font-size:14px;line-height:22px;margin-top:4px}.status.on .t{color:var(--action)}
-.card{display:block;color:inherit;border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:var(--sg)}
-.rooms{display:flex;flex-wrap:wrap;gap:8px}.rooms a{min-height:44px;min-width:56px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);color:var(--ink);padding:0 12px}
-.btn{display:flex;align-items:center;justify-content:center;height:54px;border-radius:var(--r);background:var(--action);color:var(--white);font:500 17px/26px "PingFang SC",sans-serif;border:0;width:100%;cursor:pointer}.btn:active{background:var(--action-p)}
-.btn.sec2{height:52px;background:var(--white);color:var(--ink);box-shadow:inset 0 0 0 1px var(--border)}.btn.sec2:active{background:var(--surface)}
-.btn[disabled]{background:var(--disabled);color:var(--disabled-ink)}
-.btns{display:flex;gap:var(--sg);margin-top:var(--sg)}
-.actionbar{position:fixed;left:0;right:0;bottom:64px;background:var(--white);border-top:1px solid var(--border);padding:12px 16px;display:flex;gap:var(--sg);z-index:4}.has-ab{padding-bottom:170px}
-.bill{border-bottom:1px solid var(--border);padding:10px 0}.bill:last-child{border:0}.bill .top{display:flex;justify-content:space-between;gap:8px}.bill .sub{color:var(--muted);font-size:14px;line-height:22px}
-.tl{border-left:2px solid var(--border);margin-left:6px;padding-left:16px}.node{position:relative;margin-bottom:16px}.node:before{content:"";position:absolute;left:-23px;top:8px;width:12px;height:12px;border-radius:50%;background:var(--border)}.node.on:before{background:var(--action)}
-label.f{display:block;margin-top:var(--fg);font:500 14px/22px "PingFang SC",sans-serif}
-.input,select.input{display:block;width:100%;height:56px;margin-top:var(--lg);padding:0 16px;border:0;border-radius:var(--r);background:var(--surface);color:var(--ink);font:400 16px/26px "PingFang SC",sans-serif;outline:none;-webkit-appearance:none}.input:focus{box-shadow:inset 0 0 0 1px var(--action)}.input.err{box-shadow:inset 0 0 0 1px var(--error)}
-.chk{display:flex;align-items:center;gap:10px;min-height:44px}.chk input{width:14px;height:14px;accent-color:var(--action);margin:0}
-.err-t{color:var(--error);font-size:14px;line-height:22px;min-height:22px}
-.step{font:500 14px/22px "PingFang SC",sans-serif;color:var(--muted)}
-.total{font:600 21px/30px "PingFang SC",sans-serif}
-.fbar{display:flex;border-bottom:1px solid var(--border);margin:-16px -16px 12px;background:var(--white);position:sticky;top:48px;z-index:3}.fbar button{flex:1;height:44px;border:0;background:none;font:400 14px/22px "PingFang SC",sans-serif;color:var(--ink)}.fbar button.act{color:var(--action);font-weight:500}
-.drop{display:none;position:sticky;top:92px;z-index:3;margin:-12px -16px 12px;background:var(--white);border-bottom:1px solid var(--border)}.drop.open{display:block}.drop div{padding:0 16px;min-height:44px;display:flex;align-items:center;border-top:1px solid var(--surface)}.drop div.act{color:var(--action);font-weight:500}
-.mask{display:none;position:fixed;inset:0;background:rgba(20,32,51,.4);z-index:20}.mask.open{display:block}
-.sheet{position:fixed;left:0;right:0;bottom:0;max-height:85vh;overflow:auto;background:var(--white);border-radius:16px 16px 0 0;padding:16px 16px 0}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:var(--lg)}.chips span{height:36px;padding:0 14px;display:flex;align-items:center;border-radius:var(--r);background:var(--surface);font-size:14px;cursor:pointer}.chips span.act{background:var(--action);color:var(--white)}
-.sheet .btns{position:sticky;bottom:0;background:var(--white);padding:12px 0}
-.daterow{display:flex;gap:8px;align-items:center}.daterow .input{margin-top:var(--lg)}
-.tabbar{position:fixed;bottom:0;left:0;right:0;height:64px;background:var(--white);display:flex;border-top:1px solid var(--border);z-index:6}
-.tabbar a,.tabbar span{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font:400 14px/22px "PingFang SC",sans-serif;color:var(--muted)}.tabbar a.act{color:var(--action);font-weight:500}
-.tabbar svg{width:26px;height:26px}
-.entry{display:flex;align-items:center;justify-content:space-between;min-height:72px}
+/* 低保真线框：灰阶，仅一个中性强调色 #333 用于选中/主要操作 */
+*{box-sizing:border-box}html,body{margin:0}body{font-family:-apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;background:#fff;color:#222;font-size:15px;line-height:24px;padding-bottom:72px}
+a{color:#222;text-decoration:underline}a.card,a.btn,.rooms a,.tabbar a,.nav a{text-decoration:none}
+.nav{position:sticky;top:0;z-index:10;background:#fff;height:48px;display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid #999}
+.nav .back{position:absolute;left:8px;color:#222}.speclink{position:absolute;right:8px;font-size:12px;font-weight:400;border:1px dashed #888;padding:0 6px;color:#555!important}
+.wrap{padding:12px}.wrap.form{padding:16px}
+.h1{font-size:22px;font-weight:600;margin:4px 0 12px}
+.sec{border:1px solid #bbb;padding:12px;margin-bottom:10px}.sec h3{margin:0 0 6px;font-size:13px;font-weight:600;color:#666}
+.row{display:flex;justify-content:space-between;gap:12px;padding:2px 0}.row>span:first-child{color:#666}.row b{font-weight:400;text-align:right}
+.helper{font-size:13px;line-height:20px;color:#777}
+.tag{display:inline-block;padding:0 6px;font-size:12px;line-height:20px;border:1px solid #999;color:#555;white-space:nowrap}
+.tag.on{background:#333;color:#fff;border-color:#333}.tag.exp{border-style:dashed;color:#222}.tag.ok{background:#eee}.tag.warn{border-color:#222;color:#222}.tag.void{text-decoration:line-through;color:#999}
+.status{border:2px solid #999;padding:12px;margin-bottom:10px;background:#f2f2f2}.status .t{font-size:18px;font-weight:600}.status .s{color:#666;font-size:13px;margin-top:2px}.status.on{border-color:#333}
+.card{display:block;color:#222;border:1px solid #bbb;padding:10px 12px;margin-bottom:8px}
+.cc .l1{display:flex;align-items:center;gap:6px;font-weight:600}.cc .addr{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.cc .n{flex:none;font-weight:400;font-size:13px;color:#555}
+.cc .l2{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;font-size:13px;color:#555}
+.rooms{display:flex;flex-wrap:wrap;gap:6px}.rooms a{min-height:40px;min-width:52px;display:flex;align-items:center;justify-content:center;border:1px solid #999;color:#222;padding:0 10px}
+.btn{display:flex;align-items:center;justify-content:center;height:44px;background:#333;color:#fff;border:1px solid #333;font-size:15px;width:100%;cursor:pointer;font-family:inherit}
+.btn.sec2{background:#fff;color:#222;border:1px solid #888}.btn[disabled]{background:#ddd;color:#888;border-color:#ddd}
+.btns{display:flex;gap:8px;margin-top:10px}
+.actionbar{position:fixed;left:0;right:0;bottom:56px;background:#fff;border-top:1px solid #999;padding:8px 12px;display:flex;gap:8px;z-index:8}.has-ab{padding-bottom:140px}
+.bill{border-bottom:1px dashed #ccc;padding:8px 0}.bill:last-child{border:0}.bill .top{display:flex;justify-content:space-between;gap:8px}.bill .sub{color:#777;font-size:13px}
+.tl{border-left:2px solid #bbb;margin-left:6px;padding-left:14px}.node{position:relative;margin-bottom:12px}.node:before{content:"";position:absolute;left:-21px;top:7px;width:10px;height:10px;border:2px solid #999;background:#fff;border-radius:50%}.node.on:before{background:#333;border-color:#333}
+label.f{display:block;margin-top:12px;font-size:13px;color:#555}
+.input,select.input{display:block;width:100%;height:40px;margin-top:4px;padding:0 10px;border:1px solid #999;background:#fff;color:#222;font:inherit;-webkit-appearance:none;border-radius:0}.input.err{border:2px solid #222}
+.chk{display:flex;align-items:center;gap:8px;min-height:40px}.chk input{margin:0}
+.err-t{color:#222;font-weight:600;font-size:13px;min-height:20px}.err-t:not(:empty):before{content:"⚠ "}
+.step{font-size:13px;color:#666;font-weight:600}.total{font-size:18px;font-weight:600}
+.fwrap{position:sticky;top:48px;z-index:9;margin:-12px -12px 10px;background:#fff}
+.fbar{display:flex;border-bottom:1px solid #999}.fbar button{flex:1;height:44px;border:0;background:#fff;font:inherit;font-size:14px;color:#222}.fbar button.act{font-weight:700;text-decoration:underline}
+.drop{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border-bottom:1px solid #999;z-index:9}.drop.open{display:block}.drop div{padding:0 12px;min-height:44px;display:flex;align-items:center;border-top:1px solid #eee}.drop div.act{font-weight:700}.drop div.act:after{content:" ✓"}
+.dmask{display:none;position:fixed;left:0;right:0;top:92px;bottom:0;background:rgba(0,0,0,.35);z-index:8}.dmask.open{display:block}
+.mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20}.mask.open{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:85vh;overflow:auto;background:#fff;border-top:2px solid #333;padding:12px 12px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.chips span{height:32px;padding:0 12px;display:flex;align-items:center;border:1px solid #999;font-size:13px;cursor:pointer}.chips span.act{background:#333;color:#fff;border-color:#333}
+.sheet .btns{position:sticky;bottom:0;background:#fff;padding:10px 0}
+.daterow{display:flex;gap:6px;align-items:center}
+.tabbar{position:fixed;bottom:0;left:0;right:0;height:56px;background:#fff;display:flex;border-top:1px solid #999;z-index:10}
+.tabbar a,.tabbar span{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;line-height:16px;color:#888}.tabbar a.act{color:#222;font-weight:700}.tabbar span{border-left:1px dashed #ddd;border-right:1px dashed #ddd}
+.tabbar svg{width:22px;height:22px}
+.entry{display:flex;align-items:center;justify-content:space-between;min-height:60px}
+.spec h2{font-size:17px;margin:20px 0 6px;padding-top:56px;margin-top:-40px;border-bottom:1px solid #999}.spec h4{margin:10px 0 2px;font-size:14px}.spec ul{margin:0;padding-left:18px}.spec li{margin:2px 0}.spec .toc a{display:inline-block;margin:2px 8px 2px 0}
