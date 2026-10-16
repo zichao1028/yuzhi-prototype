@@ -40,3 +40,9 @@ label.f{display:block;margin-top:12px;font-size:13px;color:#555}
 .tabbar svg{width:22px;height:22px}
 .entry{display:flex;align-items:center;justify-content:space-between;min-height:60px}
 .spec h2{font-size:17px;margin:20px 0 6px;padding-top:56px;margin-top:-40px;border-bottom:1px solid #999}.spec h4{margin:10px 0 2px;font-size:14px}.spec ul{margin:0;padding-left:18px}.spec li{margin:2px 0}.spec .toc a{display:inline-block;margin:2px 8px 2px 0}
+.ttl{display:flex;align-items:center;gap:6px;font-weight:600;min-width:0}.ttl .addr{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.ttl .n{flex:none;font-weight:400;font-size:13px;color:#555}
+a.ref{display:block;border:1px dashed #999;padding:6px 8px;margin:4px 0;text-decoration:none;color:#222}a.ref .helper{display:block}
+.tabs{display:flex;overflow-x:auto;border-bottom:1px solid #999;margin:0 -12px 10px;white-space:nowrap}.tabs span{flex:none;padding:10px 12px;font-size:14px;color:#666;cursor:pointer}.tabs span.act{color:#222;font-weight:700;border-bottom:3px solid #333}
+.mini{border:1px solid #888;background:#fff;font:inherit;font-size:12px;padding:0 8px;line-height:22px;color:#222;text-decoration:none;cursor:pointer}
+.actionbar .more{flex:0 0 72px}
+.row>span:first-child{flex:none;max-width:60%}
