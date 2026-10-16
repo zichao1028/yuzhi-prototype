@@ -18,6 +18,14 @@ ok(s.settlements[0].result==1500,'吴九 refund 1500');ok(K.validateReg(s,{phone
 {const t=K.seed();const z=t.contracts[0];const pv=K.partialPreview(t,z.id,['301'],'2026-11-15');ok(pv.lines.length==1&&pv.lines[0].props[0].credit==1500,'partial preview Q4 1500');}
 ok(K.validateReg(s,{phone:'13800000000',idPhotos:1,rooms:[{r:'304',rent:1}],start:'2027-01-01',end:'2027-01-31',sign:'纸质合同',payN:1,depM:1,dep:0,payRule:{type:'before',days:1}}).some(e=>e.includes('证件照片')),'photo w/o identity blocked');
 ok(K.allRooms().length>20&&K.searchRooms('lofts B3').length==3&&K.searchRooms('漕溪').length==3,'search unit');
+// Editable item drafts: preserved cash, overflow and atomic validation.
+{const t=K.seed(),c=t.contracts[0],pv=K.partialPreview(t,c.id,['301'],'2026-11-15'),l=pv.lines[0],b=t.bills.find(x=>x.id===l.bid);
+ b.pays.push({m:'线下收款',amount:10000,date:'2026-10-17'});const cash=JSON.stringify(b.pays);
+ l.items=[...b.items.map(i=>({...i})),{name:'301退租',amount:-1500,kind:'checkout',room:'301'}];
+ const sp=K.splitLines(t,pv.lines);ok(sp.excess===1300&&sp.res[0].after===10000,'overflow capped at paid');
+ const snapshot=JSON.stringify(t);l.items[0].amount=NaN;try{K.partialApply(t,c.id,['301'],'2026-11-15',pv.lines,'refund')}catch(e){}ok(JSON.stringify(t)===snapshot,'invalid amount atomic');l.items[0].amount=3000;
+ K.partialApply(t,c.id,['301'],'2026-11-15',pv.lines,'refund');ok(JSON.stringify(b.pays)===cash,'editing preserves cash');ok(b.total===10000&&t.payables.at(-1).amount===1300,'total saved and overflow refunded');
+}
 console.log('seed checks',pass,'pass',fail,'fail');
 // ---- ② flows ----
 (async()=>{const pp=require('/tmp/pt/node_modules/puppeteer-core');const br=await pp.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const pg=await br.newPage();await pg.setViewport({width:390,height:844});
@@ -76,12 +84,12 @@ console.log('seed checks',pass,'pass',fail,'fail');
  S=await st();ok(S.bills.find(b=>b.id==q4.id).items.some(i=>i.name=='维修费'&&i.amount==50),'item added');
  const q1=S.bills.find(b=>b.cid==z.id&&b.n==1);await G('bill?id='+q1.id);ok(!(await pg.$('#edit-items')),'paid bill not editable');
  // F4 partial checkout 张三 301 X=2026-11-15 → Q4 credit 1500; Q4 outstanding 5250 so applied
- await G('contract?id='+z.id);await clk('#btn-checkout');await pg.waitForSelector('.co-room');await pg.$eval('.co-room[value="301"]',e=>{e.checked=true;e.onchange()});await typ('#co-X','2026-11-15');
- ok((await txt()).includes('¥10250.00 → ¥8750.00'),'partial preview shows before/after');await clk('#do-checkout');await pg.waitForSelector('.status');
+ await G('contract?id='+z.id);await clk('#btn-checkout');await pg.waitForSelector('#co-picker');ok((await pg.evaluate(()=>location.hash)).startsWith('#contract?'),'checkout opens sheet on contract');await clk('#confirm-rooms');ok((await txt()).includes('请至少选择一间房'),'empty selection blocked');await pg.$eval('.pick-room[value="301"]',e=>e.checked=true);await clk('#confirm-rooms');await typ('#co-X','2026-11-15');
+ ok((await txt()).includes('账单金额 ¥8750.00'),'bill summary total');await clk('.co-bill');await pg.waitForSelector('.fee-table');ok((await txt()).includes('类别')&&(await txt()).includes('应收/付'),'item editor columns');ok((await pg.$$('input[aria-label="账单项金额"]')).length===6,'all original and checkout items');ok(!(await pg.$('.fee-paid input')),'paid readonly');await clk('.add-item');await typ('.fee-row:last-child input[aria-label="账单项名称"]','临时项');await typ('.fee-row:last-child input[aria-label="账单项金额"]','25');ok((await txt()).includes('¥3775.00'),'live outstanding sum');await clk('.fee-row:last-child .remove-item');await pg.screenshot({path:'/tmp/edit-bill.png'});await clk('#confirm-bill-items');await clk('#do-checkout');await pg.waitForSelector('.status');
  ok((await txt()).includes('部分退租办理成功'),'result page');S=await st();const z2=S.contracts.find(c=>c.id==z.id);ok(!z2.term&&z2.rooms.find(x=>x.r=='301').out=='2026-11-15','301 已退租, contract continues');
  ok(S.contracts.length==7,'no new contract');ok(K.billTotal(S.bills.find(b=>b.id==q4.id))==8750,'Q4 adjusted');
  // F4b partial with excess→refund: 孙七 102 out 2026-10-31; Q1 paid (credit 5100-1700*2=1700 excess) Q2..Q4 -5100
- const sq=S.contracts.find(c=>c.who=='孙七');await G('checkout?id='+sq.id);await pg.$eval('.co-room[value="102"]',e=>{e.checked=true;e.onchange()});await typ('#co-X','2026-10-31');await clk('#xm-refund');await clk('#do-checkout');await pg.waitForSelector('.status');
+ const sq=S.contracts.find(c=>c.who=='孙七');await G('contract?id='+sq.id);await clk('#btn-checkout');await pg.$eval('.pick-room[value="102"]',e=>e.checked=true);await clk('#confirm-rooms');await typ('#co-X','2026-10-31');await clk('.co-bill');ok(!(await pg.$('.add-item'))&&!(await pg.$('.remove-item')),'paid bill structure readonly');await clk('#confirm-bill-items');await clk('#xm-refund');await clk('#do-checkout');await pg.waitForSelector('.status');
  S=await st();const pay=S.payables.find(p=>p.cid==sq.id);ok(pay&&pay.amount==1700,'refund payable 1700');ok(S.bills.find(b=>b.cid==sq.id&&b.n==1).items.length==3,'paid bill unmodified');
  await G('pay?id='+pay.id);await clk('#do-pay');ok((await pg.$eval('#pstatus',e=>e.textContent))=='已完成','payable paid');
  // F5 final checkout 李四 501 X=2026-10-17, ded 200
@@ -90,7 +98,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  // received: dep1500+8×1500(Mar..Oct)=13500; actual Mar1..Oct17=7mo+17d=10500+850=11350; →13500-11350-200=1950
  ok(l2.term&&se.result==1950,'settlement 1950 got '+se.result);ok(S.bills.filter(b=>b.cid==ls.id).every(b=>b.done),'all bills 已完成');ok(S.payables.some(p=>p.sid==se.id&&p.amount==1950),'refund payable');
  // final checkout of 张三 remaining 302/303 at 2026-11-30 (Q4 partially paid → 应补)
- await G('checkout?id='+z.id);await pg.$$eval('.co-room',es=>es.forEach(e=>e.checked=true));await pg.$eval('.co-room',e=>e.onchange());await typ('#co-X','2026-11-30');await clk('#do-checkout');await pg.waitForSelector('.status');
+ await G('contract?id='+z.id);await clk('#btn-checkout');await pg.$$eval('.pick-room',es=>es.forEach(e=>e.checked=true));await clk('#confirm-rooms');await typ('#co-X','2026-11-30');await clk('#do-checkout');await pg.waitForSelector('.status');
  S=await st();const se2=S.settlements[S.settlements.length-1];// cash 3300+30600+5000=38900; rent 301 to 11-15:10.5×1000=10500; 302 11mo=11000; 303 14300; fee 1100 → 38900-35800-1100=2000
  ok(se2.result==2000,'张三 settlement '+se2.result);
  // F6 persistence
