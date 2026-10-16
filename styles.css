@@ -46,3 +46,7 @@ a.ref{display:block;border:1px dashed #999;padding:6px 8px;margin:4px 0;text-dec
 .mini{border:1px solid #888;background:#fff;font:inherit;font-size:12px;padding:0 8px;line-height:22px;color:#222;text-decoration:none;cursor:pointer}
 .actionbar .more{flex:0 0 72px}
 .row>span:first-child{flex:none;max-width:60%}
+.bhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.seg b{margin-right:14px;font-weight:400;color:#777;cursor:pointer}.seg b.act{font-weight:600;color:#222;font-size:17px}
+.sumrow{display:flex;justify-content:space-around;text-align:center;border:1px solid #ccc;padding:6px 0;margin:6px 0}.sumrow span{display:block;font-size:12px;color:#666}
+.chips2{display:flex;gap:8px;margin-bottom:8px}.bc .bt{display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:4px}.bc .bb{display:flex;justify-content:space-between;font-size:13px;color:#444}.bc .od{white-space:nowrap;padding-left:8px}.bc .ttl{max-width:260px}
+.fab{position:fixed;right:16px;bottom:96px;width:56px;height:56px;border-radius:50%;border:1px solid #333;background:#fff;font-size:12px;line-height:16px;z-index:5}
