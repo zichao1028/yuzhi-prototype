@@ -1,7 +1,10 @@
 // 业务核心（唯一逻辑来源）：浏览器与校验脚本共用。依据：租客登记 / 租赁账单生成 / 账单收支 / 退租 / 出租业务模型调整（草案）及用户规则。
 (function(root){
 const TODAY='2026-10-17';
-const BUILDINGS={'中山南路2-14号':['301','302','303','304','305','306','307'],'漕溪北路88弄5号':['501','502','601'],'虹桥路1号3号楼':['101','102','103']};
+const BUILDINGS={'中山南路2-14号':['301','302','303','304','305','306','307'],'漕溪北路88弄5号':['501','502','601'],'虹桥路1号3号楼':['101','102','103'],'张江Lofts B栋':['B101','B102','B103','B201','B202','B203','B301','B302','B303','B401']};
+const allRooms=()=>Object.entries(BUILDINGS).flatMap(([b,rs])=>rs.map(r=>({b,r,addr:b+r})));
+// 模糊搜索：地址/楼栋/房号部分匹配，不区分大小写；空格分隔的多个关键字须全部命中
+function searchRooms(q){const ks=String(q||'').toLowerCase().split(/\s+/).filter(Boolean);if(!ks.length)return [];return allRooms().filter(x=>ks.every(k=>(x.addr+' '+x.r).toLowerCase().includes(k)))}
 const r2=x=>Math.round((x+(x>=0?1e-9:-1e-9))*100)/100;
 const pd=s=>new Date(s+'T00:00:00Z'),ds=d=>d.toISOString().slice(0,10);
 const addD=(s,n)=>{const d=pd(s);d.setUTCDate(d.getUTCDate()+n);return ds(d)};
@@ -40,6 +43,8 @@ function roomBusy(st,r){return st.contracts.some(c=>!c.term&&c.rooms.some(x=>x.r
 function validateReg(st,f){const e=[];
  if(!/^1\d{10}$/.test(f.phone||''))e.push('承租人手机号必填，11 位');
  const idf=[f.who,f.idType,f.idNo].filter(x=>x&&String(x).trim());if(idf.length&&idf.length<3)e.push('姓名、证件类型、证件号码须全部填写，或全部留空由承租人实名补充');
+ if(!idf.length&&f.idPhotos>0)e.push('由承租人后续实名补充时，证件照片也须留空');
+ if(f.bills){f.bills.forEach(b=>{b.items.forEach(i=>{if(!isFinite(i.amount)||i.amount<0)e.push('账单项金额须为不小于 0 的数字')});if(!b.due)e.push('支付日必填')})}
  if(!f.rooms||!f.rooms.length)e.push('至少选择 1 间房');
  (f.rooms||[]).forEach(x=>{if(!(x.rent>0))e.push(x.r+' 月租金须大于 0')});
  if(new Set((f.rooms||[]).map(x=>x.r)).size!=(f.rooms||[]).length)e.push('房间不能重复');
@@ -61,10 +66,10 @@ function previewBills(f){return buildBills({...f,rooms:f.rooms.map(x=>({...x}))}
 function register(st,f,at){const err=validateReg(st,f);if(err.length)throw new Error(err.join('；'));
  const c={id:nid(st,'c'),who:f.who||'',phone:f.phone,idType:f.idType||'',idNo:f.idNo||'',emergency:f.emergency&&f.emergency.name?f.emergency:null,
   rooms:f.rooms.map(x=>({r:x.r,rent:r2(x.rent),in:null,out:null})),start:f.start,end:f.end,sign:f.sign,payN:f.payN,depM:f.depM,dep:r2(f.dep),payRule:f.payRule,fees:(f.fees||[]).map(x=>({...x,amount:r2(x.amount)})),
-  scan:f.scan||'',terms:f.terms||'',note:f.note||'',op:f.op||'房东',entry:(at||TODAY).slice(0,10),occupants:{},term:null};
+  scans:f.scans||0,idPhotos:f.idPhotos||0,terms:f.terms||'',note:f.note||'',op:f.op||'房东',entry:(at||TODAY).slice(0,10),occupants:{},term:null};
  c.rooms.forEach(x=>c.occupants[x.r]=[]);st.contracts.push(c);
- const bl=buildBills(c);bl.forEach((b,i)=>{b.id=nid(st,'b');b.cid=c.id;b.pays=[];b.done=false;st.bills.push(b);
-  if((f.prepaid||[]).includes(i))b.pays.push({m:'线下收款',amount:billTotal(b),date:c.entry,note:'登记时预记线下全额收款'})});
+ const bl=f.bills?JSON.parse(JSON.stringify(f.bills)):buildBills(c);bl.forEach((b,i)=>{delete b.paid;b.id=nid(st,'b');b.cid=c.id;b.pays=[];b.done=false;st.bills.push(b);
+  if((f.prepaid||[]).includes(i)||(f.bills&&f.bills[i].paid))b.pays.push({m:'线下收款',amount:billTotal(b),date:c.entry,note:'登记时预记线下全额收款'})});
  log(st,c.id,at,f.op,'租客登记',`${c.sign} · ${c.rooms.length} 间房 · ${c.start} 至 ${c.end}`,[]);return c}
 function log(st,cid,at,by,type,text,changes,extra){const ev={id:nid(st,'e'),cid,at:at||TODAY+' 10:00',by:by||'房东',type,text,changes:changes||[],...(extra||{})};st.events.push(ev);return ev}
 function collect(st,bid,amount,date,by){const b=st.bills.find(x=>x.id==bid);if(!b)throw new Error('账单不存在');const s=billStatus(b);if(s=='已完成'||s=='已收')throw new Error('账单已无待收金额');
@@ -147,6 +152,6 @@ function seed(){const st=empty();const R=(f,at)=>register(st,{sign:'电子合同
  const f=R({who:'孙七',phone:'13500005005',idType:'身份证',idNo:'310101199101016666',rooms:[{r:'101',rent:1600},{r:'102',rent:1700}],start:'2026-09-01',end:'2027-08-31',payN:3,dep:3300,sign:'纸质合同',op:'王管家',fees:[{name:'卫生费',mode:'一次付清',amount:200}],prepaid:[0,1]},'2026-08-25 10:00');
  f.rooms[0].in='2026-09-01';f.occupants={'101':[{phone:f.phone,self:true,how:'手机号',st:'已生效'}],'102':[]};
  return st}
-const API={TODAY,BUILDINGS,r2,pd,ds,addD,days,ms,rentIn,periods,dueOf,sum,billTotal,billPaid,billOut,billStatus,odays,payT,ruleT,cStatus,activeRooms,addrOf,titleText,leaseSt,empty,C,billsOf,bldOf,conflicts,roomBusy,validateReg,buildBills,previewBills,register,collect,itemsEditable,setItems,payPayable,checkoutMode,partialPreview,splitLines,partialApply,finalPreview,finalApply,moveIn,addOcc,agreeOcc,delOcc,seed,log};
+const API={TODAY,BUILDINGS,allRooms,searchRooms,r2,pd,ds,addD,days,ms,rentIn,periods,dueOf,sum,billTotal,billPaid,billOut,billStatus,odays,payT,ruleT,cStatus,activeRooms,addrOf,titleText,leaseSt,empty,C,billsOf,bldOf,conflicts,roomBusy,validateReg,buildBills,previewBills,register,collect,itemsEditable,setItems,payPayable,checkoutMode,partialPreview,splitLines,partialApply,finalPreview,finalApply,moveIn,addOcc,agreeOcc,delOcc,seed,log};
 if(typeof module!=='undefined')module.exports=API;else root.CORE=API;
 })(this);

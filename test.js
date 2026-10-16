@@ -16,26 +16,49 @@ ok(K.rentIn(1000,'2026-01-01','2026-01-01','2026-02-15')==1500,'prorate 1.5mo');
 ok(s.settlements[0].result==1500,'吴九 refund 1500');ok(K.validateReg(s,{phone:'13800000000',rooms:[{r:'301',rent:1}],start:'2026-11-01',end:'2026-11-30',sign:'纸质合同',payN:1,depM:1,dep:0,payRule:{type:'before',days:1}}).some(e=>e.includes('租期冲突')),'conflict detected');
 // direct partial on 张三: 301 out 2026-11-15 → Q4 (unpaid 10200) credit 3000-1500=1500
 {const t=K.seed();const z=t.contracts[0];const pv=K.partialPreview(t,z.id,['301'],'2026-11-15');ok(pv.lines.length==1&&pv.lines[0].props[0].credit==1500,'partial preview Q4 1500');}
+ok(K.validateReg(s,{phone:'13800000000',idPhotos:1,rooms:[{r:'304',rent:1}],start:'2027-01-01',end:'2027-01-31',sign:'纸质合同',payN:1,depM:1,dep:0,payRule:{type:'before',days:1}}).some(e=>e.includes('证件照片')),'photo w/o identity blocked');
+ok(K.allRooms().length>20&&K.searchRooms('lofts B3').length==3&&K.searchRooms('漕溪').length==3,'search unit');
 console.log('seed checks',pass,'pass',fail,'fail');
 // ---- ② flows ----
 (async()=>{const pp=require('/tmp/pt/node_modules/puppeteer-core');const br=await pp.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const pg=await br.newPage();await pg.setViewport({width:390,height:844});
  pg.on('dialog',async d=>{if(d.type()=='prompt')await d.accept(d.defaultValue()||'13900009999');else await d.accept()});pg.on('pageerror',e=>ok(0,'pageerror '+e.message));
  const G=async h=>{await pg.goto(base+'#'+h);await pg.waitForSelector('.nav')};const st=()=>pg.evaluate(()=>window.__state());const txt=()=>pg.evaluate(()=>document.body.innerText);
  const clk=async sel=>{await pg.$eval(sel,e=>e.click());await new Promise(r=>setTimeout(r,150))};const typ=async(sel,v)=>{await pg.$eval(sel,(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))},v);await new Promise(r=>setTimeout(r,60))};
- await pg.goto(base);await pg.evaluate(()=>localStorage.clear());await G('home');await clk('#reset');
- // F1 租客登记 from room 304 (vacant), 2 rooms 304+307
- await G('room?r=304');await clk('#room-register');await pg.waitForSelector('#f-phone');
- await typ('#f-phone','13811112222');await pg.$eval('.rsel[value="307"]',e=>{e.checked=true;e.onchange()});
- await typ('.rent[data-r="304"]','1000');await typ('.rent[data-r="307"]','2000');await typ('#f-start','2026-10-20');await typ('#f-end','2027-01-19');await pg.select('#f-sign','电子合同');await typ('#f-payN','1');
- await clk('#add-fee');await typ('.fname','物业费');await typ('.famt','60');
- let pv=await pg.$eval('#preview',e=>e.innerText);ok(pv.includes('3000.00')&&pv.includes('押金'),'register preview');
- await typ('#f-end','2026-10-01');await clk('#do-register');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('结束日期'),'validation end<start');
- await typ('#f-end','2027-01-19');await clk('#do-register');await pg.waitForSelector('#cstatus');
- let S=await st();let nc=S.contracts[S.contracts.length-1];ok(nc.rooms.length==2&&nc.dep==3000,'contract created dep=押1×3000');let nb=S.bills.filter(b=>b.cid==nc.id);
- ok(nb.length==4&&nb[1].items.find(i=>i.name=='304租金').amount==1000&&nb[1].items.find(i=>i.name=='物业费').amount==60,'bills per room + fee');ok((await pg.$eval('#cstatus',e=>e.textContent))=='生效中','before start: contract 生效中');
+ await pg.goto(base);await pg.evaluate(()=>{localStorage.clear();sessionStorage.clear()});await G('home');await clk('#reset');
+ // F1 租客登记: from room 304, fuzzy search adds 307, sub-pages keep draft, preview → confirm → result → contract
+ await G('room?r=304');await clk('#room-register');await pg.waitForSelector('#f-q');
+ ok((await pg.$$('.chip')).length==1,'room preselected');
+ await typ('#f-q','LOFTS b2');ok((await pg.$$eval('.sr',es=>es.map(e=>e.dataset.r))).join()=='B201,B202,B203','fuzzy case-insensitive multi-keyword');
+ await typ('#f-q','30');ok((await pg.$$('.sr')).length>=7,'partial room number match');ok((await pg.$eval('.sr[data-r="301"]',e=>e.innerText)).includes('已入住'),'search shows doc 租赁状态');ok((await pg.$eval('.sr[data-r="304"]',e=>e.innerText)).includes('无租赁'),'无租赁 term');
+ await clk('.sr[data-r="307"] button');ok((await pg.$$('.chip')).length==2,'added 307');
+ await clk('.sign:nth-child(2)');await typ('#f-phone','13811112222');await typ('#f-who','钱八');await typ('#f-idType','身份证');await typ('#f-idNo','310101199909099999');
+ await typ('#f-start','2026-10-20');await typ('#f-end','2026-10-01');await typ('#f-payN','1');await typ('#f-depM','1');
+ await typ('.rent[data-r="304"]','1000');await typ('.rent[data-r="307"]','2000');ok((await pg.$eval('#f-dep',e=>e.value))=='3000','deposit default 押1×合计');
+ await clk('#add-fee');await pg.$eval('.fee input',e=>{e.value='物业费';e.dispatchEvent(new Event('input'))});await pg.$eval('.fee input[type=number]',e=>{e.value='60';e.dispatchEvent(new Event('input'))});
+ await clk('#to-preview');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('结束日期'),'validation end<start');ok(!(await txt()).includes('账单预览'),'no inline preview');
+ await typ('#f-end','2027-01-19');
+ // sub-pages: 证件照 then 更多 then 紧急联系人, draft survives
+ await clk('#go-idphoto');await pg.waitForSelector('#add-photo');await clk('#add-photo');await clk('#add-photo');await clk('#photo-done');await pg.waitForSelector('#f-q');
+ ok((await pg.$eval('#go-idphoto',e=>e.innerText)).includes('2 张'),'id photo count returned');ok((await pg.$eval('#f-who',e=>e.value))=='钱八'&&(await pg.$$('.chip')).length==2,'draft kept after sub-page');
+ ok((await pg.$eval('#f-idNo',e=>e.value))=='310101199909099999','idNo kept');
+ await clk('#go-more');await pg.waitForSelector('#f-terms');await clk('#add-scan');await typ('#f-terms','禁止转租');await typ('#f-note','钥匙2把');await clk('#more-done');await pg.waitForSelector('#f-q');
+ await clk('#go-emg');await pg.waitForSelector('#f-eRel');await typ('#f-eRel','母亲');await typ('#f-ePhone','13811110000');await typ('#f-eName','钱母');await clk('#emg-done');await pg.waitForSelector('#f-q');
+ await pg.reload();await pg.waitForSelector('#f-q');ok((await pg.$eval('.rent[data-r="307"]',e=>e.value))=='2000'&&(await pg.$eval('#go-emg',e=>e.innerText)).includes('钱母'),'draft survives reload');
+  await clk('#to-preview');await pg.waitForSelector('#do-register');const pb=await pg.$$eval('.pbill',es=>es.map(e=>e.innerText));
+ ok(pb.length==4&&pb[0].includes('押金')&&pb[1].includes('304租金')&&pb[1].includes('物业费'),'preview lists bills with items');
+ ok((await pg.$$eval('.pv-amt',es=>es.map(e=>e.value))).slice(0,4).join()=='3000,1000,2000,60','preview item amounts');
+ await pg.$$eval('.pv-amt',es=>{es[3].value='80';es[3].dispatchEvent(new Event('input'))});await pg.$$eval('.pv-paid',es=>{es[0].checked=true;es[0].dispatchEvent(new Event('change'))});
+ await pg.goBack();await pg.waitForSelector('#f-q');ok((await pg.$eval('#f-phone',e=>e.value))=='13811112222'&&(await pg.$$('.chip')).length==2,'back from preview intact');
+ await clk('#to-preview');await pg.waitForSelector('#do-register');ok((await pg.$$eval('.pv-amt',es=>es[3].value))=='80','preview edits kept');await clk('#do-register');await pg.waitForSelector('#to-contract');ok((await txt()).includes('租客登记办理成功')&&(await txt()).includes('邀请二维码')&&(await txt()).includes('房间号 307'),'result page');
+ await clk('#to-contract');await pg.waitForSelector('#cstatus');
+ let S=await st();let nc=S.contracts[S.contracts.length-1];ok(nc.rooms.length==2&&nc.dep==3000&&nc.idPhotos==2&&nc.scans==1&&nc.terms=='禁止转租'&&nc.emergency.name=='钱母','contract fields saved');let nb=S.bills.filter(b=>b.cid==nc.id);
+ ok(nb.length==4&&nb[1].items.find(i=>i.name=='304租金').amount==1000&&nb[1].items.find(i=>i.name=='物业费').amount==80,'bills per room + edited fee');ok(K.billStatus(nb[0])=='已收'&&K.billStatus(nb[1])=='待收','已线下收款 prepaid deposit');ok((await pg.$eval('#cstatus',e=>e.textContent))=='生效中','before start: contract 生效中');
+ ok(await pg.evaluate(()=>!sessionStorage.getItem('yuzhi-reg-draft')),'draft cleared after confirm');
  await G('contract?id='+nc.id+'&tab=入住人');ok((await txt()).includes('待搬入'),'rooms 待搬入 before start');ok(!!(await pg.$('#btn-checkout')),'checkout allowed before start');
- // conflict: register 304 again blocked (room no longer vacant in list)
- await G('register');ok(!(await pg.$('.rsel[value="304"]')),'304 no longer vacant');
+ // 租期冲突: occupied room selectable, blocked on overlap with reason; allowed when no overlap
+ await G('register?new=1');await pg.waitForSelector('#f-q');await typ('#f-q','304');await clk('.sr[data-r="304"] button');await clk('.sign:nth-child(1)');await typ('#f-phone','13811114444');await typ('#f-start','2026-12-01');await typ('#f-end','2027-03-31');await typ('.rent[data-r="304"]','900');
+ await clk('#to-preview');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('租期冲突'),'overlap blocked with reason');
+ await typ('#f-start','2027-01-20');await typ('#f-end','2027-06-30');await clk('#to-preview');ok(!!(await pg.$('#do-register')),'non-overlapping period on occupied room allowed');
  // F1b multi-building registration (no building restriction)
  {const t2=K.seed();const mc=K.register(t2,{phone:'13811113333',rooms:[{r:'307',rent:900},{r:'103',rent:800}],start:'2026-11-01',end:'2027-10-31',sign:'纸质合同',payN:1,depM:1,dep:1700,payRule:{type:'before',days:3},fees:[]});ok(K.titleText(mc)=='中山南路2-14号307、虹桥路1号3号楼103','multi-building title '+K.titleText(mc));}
  // F2 collect partial then full on 张三 Q4
