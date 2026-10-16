@@ -22,10 +22,13 @@ function billStatus(b){if(b.done)return '已完成';const t=billTotal(b),p=billP
 function odays(b,today){const st=billStatus(b);return (st=='待收'||st=='部分收款')&&b.due<today?days(b.due,today):0}
 const payT=c=>`付${c.payN}押${c.depM}`;
 const ruleT=r=>r.type=='fixed'?`每期账单开始月份 ${r.day} 日支付（押金与第1期为合同开始日）`:`账单开始日期前 ${r.days} 天支付（押金与第1期为合同开始日）`;
-function cStatus(c,today){if(c.term)return '已终止';if(c.start>today)return '待生效';if(c.end<today)return '已到期';return '生效中'}
+function cStatus(c,today){if(c.term)return '已终止';if(c.end<today)return '已到期';return '生效中'}
 const activeRooms=c=>c.rooms.filter(x=>!x.out);
-const addrOf=(c,r)=>c.bld+r;
-function occSt(x,today){return x.out?'已退租':(x.in&&x.in<=today?'已入住':'未入住')}
+const addrOf=(c,r)=>bldOf(r)+r;
+function titleText(c){const bs=[...new Set(c.rooms.map(x=>bldOf(x.r)))];return bs.length==1?bs[0]+c.rooms.map(x=>x.r).join('、'):c.rooms.map(x=>bldOf(x.r)+x.r).join('、')}
+// 租赁状态（prd-租客登记 租赁记录状态表）：已退租 / 待搬入 / 已入住
+function leaseSt(st,c,x,today){if(x.out)return '已退租';if(today<c.start)return '待搬入';
+ const prev=st.contracts.some(o=>o!==c&&o.start<c.start&&o.rooms.some(y=>y.r==x.r&&!y.out));return prev?'待搬入':'已入住'}
 function empty(){return {v:2,today:TODAY,seq:1,contracts:[],bills:[],payables:[],settlements:[],events:[]}}
 const nid=(st,p)=>p+(st.seq++);
 const C=(st,id)=>st.contracts.find(c=>c.id==id);
@@ -40,7 +43,6 @@ function validateReg(st,f){const e=[];
  if(!f.rooms||!f.rooms.length)e.push('至少选择 1 间房');
  (f.rooms||[]).forEach(x=>{if(!(x.rent>0))e.push(x.r+' 月租金须大于 0')});
  if(new Set((f.rooms||[]).map(x=>x.r)).size!=(f.rooms||[]).length)e.push('房间不能重复');
- const bl=new Set((f.rooms||[]).map(x=>bldOf(x.r)));if(bl.size>1)e.push('原型：示例按单一楼栋地址生成标题，请选择同一楼栋的房间');
  if(!f.start||!f.end)e.push('合同开始日期、结束日期必填');else if(f.end<f.start)e.push('结束日期不能早于开始日期');
  if(!['纸质合同','电子合同'].includes(f.sign))e.push('请选择签约方式');
  if(!(Number.isInteger(f.payN)&&f.payN>=1&&f.payN<=12))e.push('付款方式：每次支付月数为 1–12 的整数');
@@ -57,7 +59,7 @@ function buildBills(c){const out=[{k:'dep',n:0,s:null,e:null,due:c.start,items:[
   out.push({k:'rent',n:i+1,s,e,due:dueOf(c.payRule,s,i,c.start),items})});return out}
 function previewBills(f){return buildBills({...f,rooms:f.rooms.map(x=>({...x}))})}
 function register(st,f,at){const err=validateReg(st,f);if(err.length)throw new Error(err.join('；'));
- const c={id:nid(st,'c'),who:f.who||'',phone:f.phone,idType:f.idType||'',idNo:f.idNo||'',emergency:f.emergency&&f.emergency.name?f.emergency:null,bld:bldOf(f.rooms[0].r),
+ const c={id:nid(st,'c'),who:f.who||'',phone:f.phone,idType:f.idType||'',idNo:f.idNo||'',emergency:f.emergency&&f.emergency.name?f.emergency:null,
   rooms:f.rooms.map(x=>({r:x.r,rent:r2(x.rent),in:null,out:null})),start:f.start,end:f.end,sign:f.sign,payN:f.payN,depM:f.depM,dep:r2(f.dep),payRule:f.payRule,fees:(f.fees||[]).map(x=>({...x,amount:r2(x.amount)})),
   scan:f.scan||'',terms:f.terms||'',note:f.note||'',op:f.op||'房东',entry:(at||TODAY).slice(0,10),occupants:{},term:null};
  c.rooms.forEach(x=>c.occupants[x.r]=[]);st.contracts.push(c);
@@ -96,7 +98,7 @@ function partialApply(st,cid,rooms,X,lines,mode,by,at){const c=C(st,cid);const c
  if(mode=='deduct'&&left>0){for(const b of billsOf(st,cid).filter(b=>!b.done&&billOut(b)>0).sort((a,b)=>a.due<b.due?-1:a.due>b.due?1:a.n-b.n)){if(left<=0)break;const a=r2(Math.min(left,billOut(b)));b.pays.push({m:'抵扣',amount:a,date:X,note:'退租多收款抵扣'});deduct.push({bid:b.id,label:b.k=='dep'?'押金':'租金第'+b.n+'期',amount:a});left=r2(left-a)}}
  if(left>0){payable={id:nid(st,'p'),cid,amount:left,paid:0,due:X,date:null,status:'待付款',reason:`${rooms.join('、')} 退租多收款退还`};st.payables.push(payable)}
  rooms.forEach(r=>{const x=c.rooms.find(y=>y.r==r);x.out=X;c.occupants[r]=c.occupants[r].map(o=>({...o,ended:X}))});
- const ev=log(st,cid,at,by,'部分退租',`${rooms.map(r=>c.bld+r).join('、')} 退租 · 实际退租日 ${X}`,changes,{rooms,X,excess,deduct,payable:payable&&payable.id,mode});return ev}
+ const ev=log(st,cid,at,by,'部分退租',`${rooms.map(r=>addrOf(c,r)).join('、')} 退租 · 实际退租日 ${X}`,changes,{rooms,X,excess,deduct,payable:payable&&payable.id,mode});return ev}
 // ---- 最后一次退租：整份合同结算（草案 §十）----
 function finalPreview(st,cid,X){const c=C(st,cid);const err=[];if(!X)err.push('请填写实际退租日');else if(X<c.start)err.push('实际退租日不能早于合同开始日');else if(c.end>=TODAY&&X>c.end)err.push('实际退租日不能晚于合同结束日');else if(c.end<TODAY&&X>TODAY)err.push('已到期合同的实际退租日不能晚于今天');
  const lastOut=c.rooms.filter(x=>x.out).map(x=>x.out).sort().pop();if(X&&lastOut&&X<lastOut)err.push('实际退租日不能早于已退租房间的退租日 '+lastOut);
@@ -115,8 +117,8 @@ function finalApply(st,cid,X,other,ded,dedr,by,at){const c=C(st,cid);const p=fin
  if(result>0){const pb={id:nid(st,'p'),cid,amount:result,paid:0,due:X,date:null,status:'待付款',reason:'结算应退',sid};st.payables.push(pb);s.payable=pb.id}
  if(result<0){const b={id:nid(st,'b'),cid,k:'settle',n:0,s:null,e:null,due:X,items:[{name:'结算应收',amount:-result,kind:'settle'}],pays:[],done:false,sid};st.bills.push(b);s.receivable=b.id}
  st.settlements.push(s);c.term={X,at:at||TODAY+' 10:00',by:by||'房东',sid,reason:act.length==c.rooms.length?'全部退租':'退租（最后 '+act.join('、')+'）'};
- const ev=log(st,cid,at,by,'全部退租',`${act.map(r=>c.bld+r).join('、')} 退租 · 实际退租日 ${X} · 结算结果 ${result>=0?'应退':'应收'} ${Math.abs(result)}`,[],{rooms:act,X,sid});return ev}
-function moveIn(st,cid,r,date){const c=C(st,cid);const x=c.rooms.find(y=>y.r==r);if(x.in)throw new Error('已办理入住');if(!date||date>TODAY)throw new Error('实际入住日不能晚于今天');x.in=date;log(st,cid,date+' 10:00','房东','办理入住',`${c.bld}${r} 实际入住日 ${date}`,[])}
+ const ev=log(st,cid,at,by,'全部退租',`${act.map(r=>addrOf(c,r)).join('、')} 退租 · 实际退租日 ${X} · 结算结果 ${result>=0?'应退':'应收'} ${Math.abs(result)}`,[],{rooms:act,X,sid});return ev}
+function moveIn(st,cid,r,date){const c=C(st,cid);const x=c.rooms.find(y=>y.r==r);if(x.in)throw new Error('已记录实际入住时间');if(!date||date>TODAY)throw new Error('实际入住时间不能晚于今天');x.in=date;log(st,cid,date+' 10:00','房东','记录实际入住时间',`${addrOf(c,r)} 实际入住时间 ${date}`,[])}
 function addOcc(st,cid,r,phone,self){const c=C(st,cid);if(!/^1\d{10}$/.test(phone))throw new Error('请输入 11 位手机号');c.occupants[r].push({phone,self:!!self,how:'手机号',st:'已生效'})}
 function agreeOcc(st,cid,r,i){C(st,cid).occupants[r][i].st='已生效'}
 function delOcc(st,cid,r,i){C(st,cid).occupants[r].splice(i,1)}
@@ -141,10 +143,10 @@ function seed(){const st=empty();const R=(f,at)=>register(st,{sign:'电子合同
  const e=R({who:'吴九',phone:'13300007007',idType:'身份证',idNo:'310101199506065555',rooms:[{r:'502',rent:1500}],start:'2025-06-01',end:'2026-05-31',payN:1,dep:1500,sign:'纸质合同',op:'陈管家'},'2025-05-26 10:00');
  payDue(st,e.id,'2026-05-31');e.rooms[0].in='2025-06-01';e.occupants={'502':[{phone:e.phone,self:true,how:'手机号',st:'已生效'}]};
  finalApply(st,e.id,'2026-05-31',0,0,'','陈管家','2026-05-31 09:30');payPayable(st,st.payables.find(p=>p.cid==e.id).id,'2026-06-02');
- // 6 多房，含一次付清费用、一间未入住
+ // 6 多房，含一次付清费用、102 未记录实际入住时间
  const f=R({who:'孙七',phone:'13500005005',idType:'身份证',idNo:'310101199101016666',rooms:[{r:'101',rent:1600},{r:'102',rent:1700}],start:'2026-09-01',end:'2027-08-31',payN:3,dep:3300,sign:'纸质合同',op:'王管家',fees:[{name:'卫生费',mode:'一次付清',amount:200}],prepaid:[0,1]},'2026-08-25 10:00');
  f.rooms[0].in='2026-09-01';f.occupants={'101':[{phone:f.phone,self:true,how:'手机号',st:'已生效'}],'102':[]};
  return st}
-const API={TODAY,BUILDINGS,r2,pd,ds,addD,days,ms,rentIn,periods,dueOf,sum,billTotal,billPaid,billOut,billStatus,odays,payT,ruleT,cStatus,activeRooms,addrOf,occSt,empty,C,billsOf,bldOf,conflicts,roomBusy,validateReg,buildBills,previewBills,register,collect,itemsEditable,setItems,payPayable,checkoutMode,partialPreview,splitLines,partialApply,finalPreview,finalApply,moveIn,addOcc,agreeOcc,delOcc,seed,log};
+const API={TODAY,BUILDINGS,r2,pd,ds,addD,days,ms,rentIn,periods,dueOf,sum,billTotal,billPaid,billOut,billStatus,odays,payT,ruleT,cStatus,activeRooms,addrOf,titleText,leaseSt,empty,C,billsOf,bldOf,conflicts,roomBusy,validateReg,buildBills,previewBills,register,collect,itemsEditable,setItems,payPayable,checkoutMode,partialPreview,splitLines,partialApply,finalPreview,finalApply,moveIn,addOcc,agreeOcc,delOcc,seed,log};
 if(typeof module!=='undefined')module.exports=API;else root.CORE=API;
 })(this);

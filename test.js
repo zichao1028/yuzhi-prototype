@@ -32,9 +32,12 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await typ('#f-end','2026-10-01');await clk('#do-register');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('结束日期'),'validation end<start');
  await typ('#f-end','2027-01-19');await clk('#do-register');await pg.waitForSelector('#cstatus');
  let S=await st();let nc=S.contracts[S.contracts.length-1];ok(nc.rooms.length==2&&nc.dep==3000,'contract created dep=押1×3000');let nb=S.bills.filter(b=>b.cid==nc.id);
- ok(nb.length==4&&nb[1].items.find(i=>i.name=='304租金').amount==1000&&nb[1].items.find(i=>i.name=='物业费').amount==60,'bills per room + fee');ok((await pg.$eval('#cstatus',e=>e.textContent))=='待生效','status 待生效');
+ ok(nb.length==4&&nb[1].items.find(i=>i.name=='304租金').amount==1000&&nb[1].items.find(i=>i.name=='物业费').amount==60,'bills per room + fee');ok((await pg.$eval('#cstatus',e=>e.textContent))=='生效中','before start: contract 生效中');
+ await G('contract?id='+nc.id+'&tab=入住人');ok((await txt()).includes('待搬入'),'rooms 待搬入 before start');ok(!!(await pg.$('#btn-checkout')),'checkout allowed before start');
  // conflict: register 304 again blocked (room no longer vacant in list)
  await G('register');ok(!(await pg.$('.rsel[value="304"]')),'304 no longer vacant');
+ // F1b multi-building registration (no building restriction)
+ {const t2=K.seed();const mc=K.register(t2,{phone:'13811113333',rooms:[{r:'307',rent:900},{r:'103',rent:800}],start:'2026-11-01',end:'2027-10-31',sign:'纸质合同',payN:1,depM:1,dep:1700,payRule:{type:'before',days:3},fees:[]});ok(K.titleText(mc)=='中山南路2-14号307、虹桥路1号3号楼103','multi-building title '+K.titleText(mc));}
  // F2 collect partial then full on 张三 Q4
  S=await st();const z=S.contracts[0];const q4=S.bills.find(b=>b.cid==z.id&&b.n==4);
  await G('bill?id='+q4.id);await typ('#pamt','5000');await clk('#do-collect');ok((await pg.$eval('#bstatus',e=>e.textContent))=='部分收款','partial collect');
@@ -69,4 +72,5 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await G('me');await clk('#reset');S=await st();ok(S.contracts.length==6&&S.settlements.length==1,'reset');
  for(const h of ['home','contracts','bills','bills?side=out','rooms','room?r=301','swap?id=c1','renew?id=c1','settlement?id='+S.settlements[0].id]){await G(h);ok((await txt()).length>20,'render '+h)}
  ok(!(await txt()).match(/H\d{3}/),'no H codes');
+ for(const h of ['home','contracts','contract?id=c1&tab=入住人','contract?id=c8&tab=入住人']){await G(h);ok(!(await txt()).match(/待生效|未入住/),'no invented status '+h)}
  console.log('total',pass,'pass',fail,'fail');await br.close();process.exit(fail?1:0)})();
