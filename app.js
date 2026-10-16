@@ -8,6 +8,7 @@ const money=x=>'¥'+(+x).toFixed(2);
 function go(p,q){location.hash='#'+p+(q?'?'+new URLSearchParams(q):'')}window.go=go;
 function route(){const h=location.hash.slice(1)||'home';const[p,qs]=h.split('?');return{p,q:Object.fromEntries(new URLSearchParams(qs||''))}}
 const titleOf=c=>`<span class="ttl"><span class="addr">${esc(K.titleText(c))}</span><span class="n">共${c.rooms.length}间房</span></span>`;
+function billTitle(b,c){const who=c.who||'待承租人实名补充';return b.k=='dep'?`押金·${who}`:b.k=='settle'?`结算应收·${who}`:`租金·${b.n}期·${who}`}
 const label=b=>b.k=='dep'?'押金':b.k=='settle'?'结算应收':`租金 第${b.n}期`;
 const period=b=>b.s?`${b.s} 至 ${b.e}`:'—';
 function nav(t,back,spec){return `<div class="nav">${back?`<a class="back" href="javascript:history.back()">‹ 返回</a>`:''}${esc(t)}<a class="speclink" href="spec.html${spec?'#'+spec:''}">功能说明</a></div>`}
@@ -15,6 +16,14 @@ const ICON={home:'<path d="M4 11.5 13 4l9 7.5"/><path d="M6.5 10v11h13V10"/>',ro
 function tabbar(a){return `<div class="tabbar">${[['home','首页'],['rooms','房源'],['bills','账单'],['me','我的']].map(([k,n])=>`<a href="#${k}" class="${a==k?'act':''}"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2">${ICON[k]}</svg>${n}</a>`).join('')}</div>`}
 const row=(a,b)=>`<div class="row"><span>${a}</span><b>${b}</b></div>`;
 function flash(m){const d=document.createElement('div');d.id='toast';d.textContent=m;d.style.cssText='position:fixed;top:60px;left:20px;right:20px;background:#333;color:#fff;padding:10px;z-index:99;text-align:center';document.body.appendChild(d);setTimeout(()=>d.remove(),1800)}
+window.copyPhone=async function(event,phone){
+ event.stopPropagation();
+ try{await navigator.clipboard.writeText(phone)}catch(e){
+  const input=document.createElement('textarea');input.value=phone;input.style.cssText='position:fixed;opacity:0';document.body.appendChild(input);input.select();
+  try{if(!document.execCommand('copy'))throw new Error('copy failed')}catch(e){flash('复制失败，请手动复制');return}finally{input.remove()}
+ }
+ flash('已复制');
+};
 // ---------------- pages ----------------
 const P={};
 P.home=()=>{const cs=S.contracts,cnt=s=>cs.filter(c=>K.cStatus(c,T)==s).length;const due=S.bills.filter(b=>['待收','部分收款'].includes(K.billStatus(b))&&b.due<=T);
@@ -43,12 +52,12 @@ P.contract=(q)=>{const c=K.C(S,q.id);if(!c)return nav('合同',1)+'<div class="w
  if(tab=='办理记录'){body='<div class="tl">'+S.events.filter(e=>e.cid==c.id).slice().reverse().map(e=>`<div class="node on"><b>${e.type}</b> <span class="helper">${e.at} · ${esc(e.by)}</span><div>${esc(e.text)}</div>${['部分退租','全部退租'].includes(e.type)?`<a href="#result?ev=${e.id}">查看办理结果</a>`:''}</div>`).join('')+'</div>'}
  const canOut=!c.term;
  return nav('合同详情',1,'contract')+`<div class="wrap has-ab"><div class="status ${st=='生效中'?'on':''}"><div class="t" id="cstatus">${st}</div></div>
- <div class="card" onclick="document.getElementById('rm').classList.add('open')">${titleOf(c)}<div class="helper">${esc(c.who||'待承租人实名补充')} ${c.phone} · 点击查看房间</div></div>
+ <div class="card" onclick="document.getElementById('rm').classList.add('open')">${titleOf(c)}<div class="helper">${esc(c.who||'待承租人实名补充')} ${esc(c.phone)} <span class="act-links"><button type="button" class="mini" data-phone="${esc(c.phone)}" onclick="copyPhone(event,this.dataset.phone)">复制</button><a class="mini" href="tel:${esc(c.phone)}" onclick="event.stopPropagation()">拨打</a></span> · 点击查看房间</div></div>
  <div class="mask" id="rm" onclick="this.classList.remove('open')"><div class="sheet"><b>房间</b>${c.rooms.map(x=>row(esc(K.addrOf(c,x.r)),(x.out?'已退租 '+x.out:K.leaseSt(S,c,x,T))+' · '+money(x.rent)+'/月')).join('')}<div class="btns"><button class="btn sec2">关闭</button></div></div></div>
  <div class="tabs">${['合同','账单','承租人','入住人','办理记录'].map(x=>`<span class="${x==tab?'act':''}" onclick="go('contract',{id:'${c.id}',tab:'${x}'})">${x}</span>`).join('')}</div>${body}</div>
  ${canOut?`<div class="actionbar"><button class="btn sec2" onclick="go('renew',{id:'${c.id}'})">续租</button><button class="btn sec2" onclick="go('swap',{id:'${c.id}'})">换房</button><button class="btn" id="btn-checkout" onclick="openCheckoutRooms('${c.id}')">退租</button></div>`:''}`+tabbar('home')};
-function billCard(b,c){const s=K.billStatus(b),od=K.odays(b,T);return `<a class="card bc" href="#bill?id=${b.id}" data-bid="${b.id}"><div class="bt">${titleOf(c)}<span class="tag ${s=='已收'||s=='已完成'?'ok':'warn'}">${s}</span></div><div class="bb"><span>${label(b)} · ${period(b)}</span><span>${money(K.billTotal(b))}</span></div><div class="bb"><span>支付日 ${b.due}</span><span>待收 ${money(Math.max(0,K.billOut(b)))}${od?` <b class="od">逾期${od}天</b>`:''}</span></div></a>`}
-function payCard(p,c){return `<a class="card bc" href="#pay?id=${p.id}" data-pid="${p.id}"><div class="bt">${titleOf(c)}<span class="tag ${p.status=='已完成'?'ok':'warn'}">${p.status}</span></div><div class="bb"><span>付款账单 · ${esc(p.reason)}</span><span>${money(p.amount)}</span></div><div class="bb"><span>支付日 ${p.due}</span><span>${p.date?'已付 '+p.date:''}</span></div></a>`}
+function billCard(b,c){const s=K.billStatus(b),od=K.odays(b,T);return `<a class="card bc" href="#bill?id=${b.id}" data-bid="${b.id}"><div class="bt"><span>${esc(billTitle(b,c))}</span><span class="amount">${money(K.billTotal(b))}</span></div><div class="bb"><span>账期 ${period(b)}</span><span class="tag ${s=='已收'||s=='已完成'?'ok':'warn'}">${s}</span></div><div class="bb"><span>应付日 ${b.due}</span><span>待收 ${money(Math.max(0,K.billOut(b)))}${od?` <b class="od">逾期${od}天</b>`:''}</span></div><div class="helper">${esc(K.titleText(c))} · 共${c.rooms.length}间房</div></a>`}
+function payCard(p,c){return `<a class="card bc" href="#pay?id=${p.id}" data-pid="${p.id}"><div class="bt"><span>付款账单·${esc(c.who||'待承租人实名补充')}</span><span class="amount">${money(p.amount)}</span></div><div class="bb"><span>付款账单 · ${esc(p.reason)}</span><span class="tag ${p.status=='已完成'?'ok':'warn'}">${p.status}</span></div><div class="bb"><span>支付日 ${p.due}</span><span>${p.date?'已付 '+p.date:''}</span></div><div class="helper">${esc(K.titleText(c))} · 共${c.rooms.length}间房</div></a>`}
 P.bills=(q)=>{const side=q.side||'in',bld=q.bld||'全部楼栋';
  if(side=='in'){const tabs=['全部','待收','部分收款','已收','已完成'],t=q.t||'待收';const typ=q.typ||'全部';
   let l=S.bills.filter(b=>{const c=K.C(S,b.cid);return (t=='全部'||K.billStatus(b)==t)&&(bld=='全部楼栋'||c.rooms.some(x=>K.bldOf(x.r)==bld))&&(typ=='全部'||(typ=='租金'?b.k=='rent':typ=='押金'?b.k=='dep':b.k=='settle'))}).sort((a,b)=>a.due<b.due?-1:1);
@@ -66,7 +75,7 @@ P.bills=(q)=>{const side=q.side||'in',bld=q.bld||'全部楼栋';
 P.bill=(q)=>{const b=S.bills.find(x=>x.id==q.id);const c=K.C(S,b.cid);const s=K.billStatus(b),ed=K.itemsEditable(b),editing=q.edit&&ed;
  const items=editing?`<div id="items">${b.items.map(i=>itemRow(i)).join('')}</div><button class="mini" onclick="document.getElementById('items').insertAdjacentHTML('beforeend',itemRowHtml({name:'',amount:''}))">+ 添加账单项</button><div class="err-t" id="ierr"></div><div class="btns"><button class="btn sec2" onclick="go('bill',{id:'${b.id}'})">取消</button><button class="btn" id="save-items" onclick="saveItems('${b.id}')">保存</button></div>`
   :b.items.map(i=>row(esc(i.name),money(i.amount))).join('')+row('<b>账单金额</b>','<b id="btotal">'+money(K.billTotal(b))+'</b>');
- return nav('账单详情',1,'bill')+`<div class="wrap"><div class="status"><div class="t" id="bstatus">${s}</div><div class="s">${label(b)} · ${period(b)} · 支付日 ${b.due}${K.odays(b,T)?' · 逾期'+K.odays(b,T)+'天':''}</div></div>
+ return nav('账单详情',1,'bill')+`<div class="wrap"><div class="status"><div class="t" id="bstatus">${s}</div><div class="s">${esc(billTitle(b,c))}</div><div class="s">账期 ${period(b)} · 应付日 ${b.due}${K.odays(b,T)?' · 逾期'+K.odays(b,T)+'天':''}</div></div>
  <a class="card" href="#contract?id=${c.id}">${titleOf(c)}<div class="helper">${esc(c.who||'待承租人实名补充')} ${c.phone}</div></a>
  <div class="sec"><h3>账单项 ${ed&&!editing?`<button class="mini" id="edit-items" onclick="go('bill',{id:'${b.id}',edit:1})">调整</button>`:''}</h3>${items}${!ed?'<div class="helper">'+(s=='已收'?'已收账单不可调整':'已完成账单不可调整')+'</div>':''}</div>
  <div class="sec"><h3>收款记录</h3>${row('已收',money(K.billPaid(b)))}${row('待收','<span id="bout">'+money(Math.max(0,K.billOut(b)))+'</span>')}${b.pays.map(p=>row(`${p.date} ${p.m}`,money(p.amount)+(p.note?'<div class="helper">'+esc(p.note)+'</div>':''))).join('')||'<div class="helper">暂无</div>'}</div>
