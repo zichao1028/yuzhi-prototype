@@ -61,17 +61,17 @@ function payCard(p,c){return `<a class="card bc" href="#pay?id=${p.id}" data-pid
 P.bills=(q)=>{const side=q.side||'in',bld=q.bld||'全部楼栋';
  if(side=='in'){const tabs=['全部','待收','部分收款','已收','已完成'],t=q.t||'待收';const typ=q.typ||'全部';
   let l=S.bills.filter(b=>{const c=K.C(S,b.cid);return (t=='全部'||K.billStatus(b)==t)&&(bld=='全部楼栋'||c.rooms.some(x=>K.bldOf(x.r)==bld))&&(typ=='全部'||(typ=='租金'?b.k=='rent':typ=='押金'?b.k=='dep':b.k=='settle'))}).sort((a,b)=>a.due<b.due?-1:1);
-  const due=K.sum(l.map(b=>Math.max(0,K.billOut(b)))),odn=l.filter(b=>K.odays(b,T)).length;
+  const total=K.sum(l.map(b=>K.billTotal(b))),paid=K.sum(l.map(b=>K.billPaid(b))),due=K.sum(l.map(b=>Math.max(0,K.billOut(b))));
   return nav('账单',1,'bills')+`<div class="wrap"><div class="bhead"><div class="seg"><b class="act">收款账单</b><b onclick="go('bills',{side:'out'})">付款账单</b></div></div>
   <div class="tabs">${tabs.map(x=>`<span class="${x==t?'act':''}" onclick="go('bills',{side:'in',t:'${x}',bld:'${bld}',typ:'${typ}'})">${x}</span>`).join('')}</div>
   <div class="chips2"><select class="input" style="height:32px" onchange="go('bills',{side:'in',t:'${t}',bld:this.value,typ:'${typ}'})">${['全部楼栋',...Object.keys(K.BUILDINGS)].map(x=>`<option ${x==bld?'selected':''}>${x}</option>`).join('')}</select><select class="input" style="height:32px" onchange="go('bills',{side:'in',t:'${t}',bld:'${bld}',typ:this.value})">${['全部','租金','押金','结算应收'].map(x=>`<option ${x==typ?'selected':''}>${x}</option>`).join('')}</select></div>
-  <div class="sumrow"><div>${l.length}<span>笔账单</span></div><div>${money(due)}<span>待收合计</span></div><div>${odn}<span>笔逾期</span></div></div>
-  <button class="mini" disabled title="待确认">批量选择（待确认）</button>
+  <div class="sumrow"><div>${money(total)}<span>总金额（元）</span></div><div>${money(paid)}<span>已收（元）</span></div><div>${money(due)}<span>待收（元）</span></div></div>
   ${l.map(b=>billCard(b,K.C(S,b.cid))).join('')||'<div class="helper">暂无账单</div>'}</div>`+tabbar('bills')}
  const t=q.t||'全部';const l=S.payables.filter(p=>(t=='全部'||p.status==t)&&(bld=='全部楼栋'||K.C(S,p.cid).rooms.some(x=>K.bldOf(x.r)==bld)));
+ const pTotal=K.sum(l.map(p=>p.amount)),pPaid=K.sum(l.filter(p=>p.status=='已完成').map(p=>p.amount)),pDue=K.sum(l.filter(p=>p.status!='已完成').map(p=>p.amount));
  return nav('账单',1,'bills')+`<div class="wrap"><div class="bhead"><div class="seg"><b onclick="go('bills',{side:'in'})">收款账单</b><b class="act">付款账单</b></div></div>
  <div class="tabs">${['全部','待付款','已完成'].map(x=>`<span class="${x==t?'act':''}" onclick="go('bills',{side:'out',t:'${x}'})">${x}</span>`).join('')}</div>
- <div class="sumrow"><div>${l.length}<span>笔</span></div><div>${money(K.sum(l.filter(p=>p.status!='已完成').map(p=>p.amount)))}<span>待付合计</span></div></div>${l.map(p=>payCard(p,K.C(S,p.cid))).join('')||'<div class="helper">暂无付款账单</div>'}</div>`+tabbar('bills')};
+ <div class="sumrow"><div>${money(pTotal)}<span>总金额（元）</span></div><div>${money(pPaid)}<span>已付（元）</span></div><div>${money(pDue)}<span>待付（元）</span></div></div>${l.map(p=>payCard(p,K.C(S,p.cid))).join('')||'<div class="helper">暂无付款账单</div>'}</div>`+tabbar('bills')};
 P.bill=(q)=>{const b=S.bills.find(x=>x.id==q.id);const c=K.C(S,b.cid);const s=K.billStatus(b),ed=K.itemsEditable(b),editing=q.edit&&ed;
  const items=editing?`<div id="items">${b.items.map(i=>itemRow(i)).join('')}</div><button class="mini" onclick="document.getElementById('items').insertAdjacentHTML('beforeend',itemRowHtml({name:'',amount:''}))">+ 添加账单项</button><div class="err-t" id="ierr"></div><div class="btns"><button class="btn sec2" onclick="go('bill',{id:'${b.id}'})">取消</button><button class="btn" id="save-items" onclick="saveItems('${b.id}')">保存</button></div>`
   :b.items.map(i=>row(esc(i.name),money(i.amount))).join('')+row('<b>账单金额</b>','<b id="btotal">'+money(K.billTotal(b))+'</b>');
