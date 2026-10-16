@@ -1,12 +1,54 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>办理换房</title><link rel="stylesheet" href="styles.css"></head><body><div class="nav"><a class="back" href="index.html">‹ 返回</a>办理换房</div><div class="wrap"><div class="muted" id="prog" style="margin-bottom:8px"></div><div class="card stp"><div class="step">1 选择合同</div><select><option>H3 · 王五 · E、F · 月租 2000 · 按月</option></select></div><div class="card stp"><div class="step">2 换出房间与换房日</div><label><input type="checkbox" name="r" value="E"  style="width:auto"> E</label><label><input type="checkbox" name="r" value="F" checked style="width:auto"> F</label><label>换入房间<select id="in"><option>G</option><option>H</option></select></label><label>换房日<input type="date" value="2026-05-31"></label></div><div class="card stp"><div class="step">3 新合同条款（将开始合同 H4）</div><div class="row"><span>房间</span><b id="rooms"></b></div><div class="row"><span>租期</span><b>2026-06-01 ~ 2026-12-31</b></div><label>月租<input type="number" value="2200"></label><label>押金<input type="number" value="2200"></label></div><div class="card stp"><div class="step">4 结算与结转</div><div class="row"><span>实际租金</span><b>2000 × 5 = ¥10000</b></div><div class="row"><span>已收租金</span><b>¥10000</b></div><div class="row"><span>押金应退</span><b>¥2000</b></div><label><input type="checkbox" name="k" value="d" checked style="width:auto"> H4 押金 ¥2200（结转 2000，余 200 待收）</label><div class="muted">现金应退 ¥0</div></div><div class="card stp"><div class="step">5 确认摘要</div><div id="sum"></div></div><div class="btns"><a class="btn ghost" id="prev">上一步</a><a class="btn" id="next">下一步</a></div></div><div class="tabbar"><a href="index.html" class="">合同</a><a href="tenancy-list.html" class="">租约</a><a href="checkout-flow.html" class="act">办理</a></div><script>const DONE='contract-h3.html';
-function check(s){if(s==1){const n=document.querySelectorAll('[name=r]:checked').length;if(n!=1){alert('一次换一间房');return false}}return true}
-function calc(){const r=[...document.querySelectorAll('[name=r]')],o=r.find(e=>e.checked),k=r.filter(e=>!e.checked).map(e=>e.value),i=document.getElementById('in').value;if(!o)return;
-document.getElementById('rooms').textContent=k.concat(i).join('、');
-document.getElementById('sum').innerHTML='<div>· 合同 H3 将终止（终止原因：换房（'+o.value+' 换 '+i+'），终止日 2026-05-31），结算应退 ¥2000</div><div>· 将开始合同 H4（房间 '+k.concat(i).join('、')+'），生成新一组账单</div><div>· 结转 ¥2000 抵扣 H4 押金，现金退还 ¥0</div>'}
-</script><script>
-let s=0;const st=[...document.querySelectorAll('.stp')];
-function show(){st.forEach((e,i)=>e.style.display=i==s?'block':'none');document.getElementById('prog').textContent='第 '+(s+1)+' / '+st.length+' 步';document.getElementById('prev').style.visibility=s?'visible':'hidden';document.getElementById('next').textContent=s==st.length-1?'确认办理':'下一步';if(window.calc)calc()}
-document.getElementById('prev').onclick=()=>{s--;show()};
-document.getElementById('next').onclick=()=>{if(window.check&&!check(s))return;if(s<st.length-1){s++;show()}else{alert('办理成功');location.href=DONE}};
-document.querySelectorAll('input,select').forEach(e=>e.oninput=()=>window.calc&&calc());show();
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>办理换房</title><link rel="stylesheet" href="styles.css"></head><body class="" data-type="swap"><div class="nav"><a class="back" href="contracts.html" aria-label="返回">‹ 返回</a>办理换房</div><div class="wrap form"><div id="app"></div></div><div class="tabbar"><a href="index.html" class="act"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g fill="#2979FF" opacity=".28" stroke="none"><ellipse cx="15" cy="18" rx="6" ry="4.5"/></g><path d="M4 11.5 13 4l9 7.5"/><path d="M6.5 10v11h13V10"/><path d="M11 21v-5h4v5"/></svg>首页</a><a href="rooms.html" class=""><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4h8v17"/><path d="M14 10h4v11"/><path d="M4 21h18"/><path d="M9 8h2M9 12h2M9 16h2"/></svg>房源</a><span aria-hidden="true"></span><a href="bills.html" class=""><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="14" height="17" rx="2.5"/><path d="M10 3.5h6v3h-6z"/><path d="M10 12h6M10 16h4"/></svg>账单</a><a href="me.html" class=""><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="9" r="4"/><path d="M5 22c0-4.5 3.5-7 8-7s8 2.5 8 7"/></svg>我的</a></div><script src="data.js"></script><script>
+const $=i=>document.getElementById(i),q=new URLSearchParams(location.search),T=document.body.dataset.type;
+const NM={checkout:'退租',swap:'换房',renew:'续租'};
+const f=n=>(Math.round(n*100)/100).toLocaleString('zh-CN',{maximumFractionDigits:2});
+const pd=s=>new Date(s+'T00:00:00'),ds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const addD=(s,n)=>{const d=pd(s);d.setDate(d.getDate()+n);return ds(d)},dim=(y,m)=>new Date(y,m+1,0).getDate();
+const c=DATA.find(x=>x.id==q.get('c'));
+const replay=c&&c.st=='已终止'&&c.flow==T;
+if(!c||(!replay&&c.st!='生效中')){$('app').innerHTML='<div class="helper">请从生效中合同的详情页发起办理。</div><a class="btn" href="contracts.html">去合同管理</a>';throw 0}
+const pre={...c,end:c.oend||c.end,st:'生效中'};
+const back='contract-'+c.id.toLowerCase()+'.html';document.querySelector('.nav .back').href=back;
+const R={H1:{out:['C'],x:'2026-04-15',rent:2000,dep:2000,carry:[1,1]},H3:{out:['F'],inR:'G',x:'2026-05-31',rent:2200,dep:2200,carry:[1,0]},H6:{rent:1900,dep:1900,carry:[1,0]}}[c.id]||{};
+function rentBetween(rent,a,b){let t=0,d=pd(a);const e=pd(b);while(d<=e){const y=d.getFullYear(),m=d.getMonth(),me=new Date(y,m,dim(y,m));const end=me<e?me:e;const days=(end-d)/864e5+1;t+=days==dim(y,m)?rent:rent*days/dim(y,m);d=new Date(y,m+1,1)}return Math.round(t*100)/100}
+function periodEnd(s0,step,day,cap){let s=pd(s0);while(true){const n=new Date(s.getFullYear(),s.getMonth()+step,s.getDate());n.setDate(n.getDate()-1);if(ds(n)>=day)return ds(n)<cap?ds(n):cap;s=new Date(n);s.setDate(s.getDate()+1)}}
+const occ=new Set(DATA.filter(x=>x.st=='生效中').flatMap(x=>x.rooms));
+const vac=replay&&R.inR?[R.inR]:(BUILDINGS[c.bld]||[]).filter(r=>!occ.has(r)&&!pre.rooms.includes(r));
+const card=`<div class="status on"><div class="t">合同 ${c.id}${replay?'（办理前 · 回放）':''}：生效中</div><div class="s">${c.who} · ${c.bld} · 房间 ${pre.rooms.join('、')} · ${pre.start} ~ ${pre.end} · 月租 ¥${f(pre.rent)} · ${pre.pay}</div></div>`;
+const chk=(n,v,l,on)=>`<label class="chk"><input type="checkbox" name="${n}" value="${v}" ${on?'checked':''}> ${l}</label>`;
+let steps=[];
+const dX=replay&&R.x?R.x:(T=='renew'?pre.end:(ds(new Date())>pre.start?ds(new Date()):pre.start));
+if(T=='checkout')steps.push(['退租房间与退租日',pre.rooms.map(r=>chk('out',r,'房间 '+r,(R.out||[]).includes(r))).join('')+`<label class="f">退租日<input class="input" type="date" id="x" value="${dX}" min="${pre.start}" max="${pre.end}"></label><div class="err-t" id="e1"></div>`]);
+if(T=='swap')steps.push(['换出房间、换入房间与换房日',pre.rooms.map(r=>chk('out',r,'换出 房间 '+r,(R.out||[]).includes(r)||pre.rooms.length==1)).join('')+`<label class="f">换入房间<select class="input" id="inR">${vac.map(r=>`<option>${r}</option>`).join('')||'<option value="">本楼栋无空置房间</option>'}</select></label><label class="f">换房日（原合同终止日）<input class="input" type="date" id="x" value="${dX}" min="${pre.start}" max="${pre.end}"></label><div class="err-t" id="e1"></div>`]);
+const defRent=R.rent||pre.rent,defDep=R.dep||pre.dep;
+steps.push(['新合同条款（将开始新合同）',`<div class="row"><span>合同房间</span><b id="nr"></b></div><div class="row"><span>租期</span><b id="nt"></b></div><label class="f">月租（元）<input class="input" type="number" id="rent" value="${defRent}"></label><label class="f">押金（元）<input class="input" type="number" id="dep" value="${defDep}"></label><label class="f">付款方式<select class="input" id="pay"><option ${pre.pay=='按季'?'selected':''}>按季</option><option ${pre.pay=='按月'?'selected':''}>按月</option></select></label>`]);
+steps.push(['结算与结转',`<div class="sec" id="calc"></div><div class="step" style="margin-top:12px">结转抵扣新合同账单</div>${chk('k','dep','',R.carry?R.carry[0]:1)}${chk('k','first','',R.carry?R.carry[1]:0)}<div class="sec" id="carry" style="margin-top:12px"></div>`]);
+steps.push(['确认摘要','<div id="sum"></div>']);
+$('app').innerHTML=card+steps.map((s,i)=>`<div class="stp"><div class="step">第 ${i+1} / ${steps.length} 步 · ${s[0]}</div>${s[1]}</div>`).join('')+'<div class="btns"><button class="btn sec2" id="prev">上一步</button><button class="btn" id="next">下一步</button></div>';
+let s=0,res;const st=[...document.querySelectorAll('.stp')];
+function calc(){const out=[...document.querySelectorAll('[name=out]:checked')].map(e=>e.value);const keep=pre.rooms.filter(r=>!out.includes(r));
+const X=T=='renew'?pre.end:$('x').value;const inR=T=='swap'?$('inR').value:'';
+const nrooms=T=='checkout'?keep:T=='swap'?keep.concat(inR?[inR]:[]):pre.rooms;
+const ns=addD(X,1),ne=T=='renew'?addD(ds(new Date(pd(pre.end).getFullYear()+1,pd(pre.end).getMonth(),pd(pre.end).getDate())),0):pre.end;
+const rent=+$('rent').value||0,dep=+$('dep').value||0,pay=$('pay').value;
+let actual,rr,lines;
+if(T=='renew'){actual=pre.paidRent;rr=0;lines=[['租金','已结清'],['押金应退','¥'+f(pre.dep)]]}
+else{actual=rentBetween(pre.rent,pre.start,X);rr=pre.paidRent-actual;lines=[['实际租金（'+pre.start.slice(5)+' ~ '+X.slice(5)+'）','¥'+f(actual)],['已收租金','¥'+f(pre.paidRent)],[rr>=0?'租金应退':'租金应补',' ¥'+f(Math.abs(rr))],['押金应退','¥'+f(pre.dep)]]}
+const tot=rr+pre.dep;lines.push(['合计应退','¥'+f(tot)]);
+const fe=periodEnd(T=='renew'?ns:pre.start,pay=='按季'?3:1,ns,ne);const first=rentBetween(rent,ns,fe);
+const k=[...document.querySelectorAll('[name=k]')];k[0].parentNode.lastChild.textContent=' 新合同押金 ¥'+f(dep);k[1].parentNode.lastChild.textContent=' 新合同首期租金（'+ns.slice(5)+' ~ '+fe.slice(5)+'）¥'+f(first);
+const want=(k[0].checked?dep:0)+(k[1].checked?first:0);const carry=Math.max(0,Math.min(want,tot));const cash=tot-carry;
+$('nr').textContent=nrooms.join('、')||'—';$('nt').textContent=ns+' ~ '+ne;
+$('calc').innerHTML='<h3>合同 '+c.id+' 结算（终止日 '+X+'）</h3>'+lines.map(l=>`<div class="row"><span>${l[0]}</span><b>${l[1]}</b></div>`).join('');
+$('carry').innerHTML=`<div class="row"><span>结转抵扣</span><b>¥${f(carry)}</b></div>`+(want>carry?`<div class="row"><span>新合同账单剩余待收</span><b>¥${f(want-carry)}</b></div>`:'')+`<div class="row"><span>${cash>=0?'现金应退承租人':'承租人应补'}</span><span class="total">¥${f(Math.abs(cash))}</span></div>`;
+const reason=T=='checkout'?'退租（房间 '+out.join('、')+'）':T=='swap'?'换房（'+out.join('、')+' 换 '+inR+'）':'到期续租';
+const nid=replay?c.next:'H'+(DATA.length+1);
+$('sum').innerHTML=`<div class="sec"><div><b style="font-weight:500">合同 ${c.id} 将终止</b></div><div class="helper">终止原因：${reason} · 终止日 ${X} · 结算应退 ¥${f(tot)}</div></div><div class="sec"><div><b style="font-weight:500">将开始合同 ${nid}</b></div><div class="helper">来源：合同 ${c.id} ${T=='renew'?'续租':reason}后续签 · 房间 ${nrooms.join('、')} · ${ns} ~ ${ne} · 月租 ¥${f(rent)} · 押金 ¥${f(dep)} · ${pay}，生成新一组账单</div></div><div class="sec"><div class="row"><span>结转抵扣合同 ${nid} 账单</span><b>¥${f(carry)}</b></div><div class="row"><span>${cash>=0?'现金应退':'承租人应补'}</span><b>¥${f(Math.abs(cash))}</b></div></div>`+(replay?'<div class="helper">回放：确认后打开实际办理结果（合同 '+c.id+' 已终止）</div>':'<div class="helper">原型演示：确认后展示办理结果，数据不保存</div>');
+res={type:T,reason,old:{id:c.id,who:c.who,bld:c.bld,rooms:pre.rooms,start:pre.start,X,tot},nw:{id:nid,rooms:nrooms,start:ns,end:ne,rent,dep,pay},carry,cash};
+return {out,keep,X,inR}}
+function check(){const v=calc();const e=$('e1');if(s==0&&T!='renew'){let m='';if(T=='checkout'&&(v.out.length==0||v.keep.length==0))m='请勾选部分房间退租（至少保留 1 间）';if(T=='swap'&&v.out.length!=1)m='一次换出 1 间房';if(T=='swap'&&!v.inR)m='无可换入房间';if(!v.X||v.X<pre.start||v.X>pre.end)m=m||'日期须在租期内';e.textContent=m;$('x').classList.toggle('err',!!m&&m.includes('日期'));if(m)return false}return true}
+function show(){st.forEach((e,i)=>e.style.display=i==s?'block':'none');$('prev').style.visibility=s?'visible':'hidden';$('next').textContent=s==st.length-1?'确认办理':'下一步';calc()}
+$('prev').onclick=()=>{s--;show()};
+$('next').onclick=()=>{if(!check())return;if(s<st.length-1){s++;show();scrollTo(0,0)}else if(replay)location.href=back;else{sessionStorage.setItem('res',JSON.stringify(res));location.href='result.html'}};
+document.addEventListener('input',calc);document.addEventListener('change',calc);show();
 </script></body></html>

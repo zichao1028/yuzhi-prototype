@@ -1,0 +1,29 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>合同管理</title><link rel="stylesheet" href="styles.css"></head><body class=""><div class="nav"><a class="back" href="index.html" aria-label="返回">‹ 返回</a>合同管理</div><div class="wrap"><div class="fbar"><button id="fb-b">楼栋 ▾</button><button id="fb-s">合同状态 ▾</button><button id="fb-f">筛选</button><button id="fb-o">排序 ▾</button></div>
+<div class="drop" id="dd"></div><div class="helper" style="margin-bottom:8px"><span id="cnt"></span><span class="tag tbd">待设计</span><span class="helper"> 筛选栏样式</span></div><div id="l"></div>
+<div class="mask" id="mask"><div class="sheet"><div class="row"><b style="font-weight:600">筛选</b><a id="x">关闭</a></div>
+<label class="f">处理人</label><div class="chips" data-k="op"></div><label class="f">签约方式</label><div class="chips" data-k="sign"></div><label class="f">付款方式</label><div class="chips" data-k="pay"></div>
+<label class="f">起租日范围</label><div class="daterow"><input class="input" type="date" id="s1"><span>~</span><input class="input" type="date" id="s2"></div>
+<label class="f">到期日范围</label><div class="daterow"><input class="input" type="date" id="e1"><span>~</span><input class="input" type="date" id="e2"></div>
+<div class="btns"><button class="btn sec2" id="reset">重置</button><button class="btn" id="ok">确定</button></div></div></div></div><div class="tabbar"><a href="index.html" class="act"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g fill="#2979FF" opacity=".28" stroke="none"><ellipse cx="15" cy="18" rx="6" ry="4.5"/></g><path d="M4 11.5 13 4l9 7.5"/><path d="M6.5 10v11h13V10"/><path d="M11 21v-5h4v5"/></svg>首页</a><a href="rooms.html" class=""><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4h8v17"/><path d="M14 10h4v11"/><path d="M4 21h18"/><path d="M9 8h2M9 12h2M9 16h2"/></svg>房源</a><span aria-hidden="true"></span><a href="bills.html" class=""><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="14" height="17" rx="2.5"/><path d="M10 3.5h6v3h-6z"/><path d="M10 12h6M10 16h4"/></svg>账单</a><a href="me.html" class=""><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="9" r="4"/><path d="M5 22c0-4.5 3.5-7 8-7s8 2.5 8 7"/></svg>我的</a></div><script src="data.js"></script><script>
+const S={b:'',s:'',o:'entry_desc',f:{op:[],sign:[],pay:[]},d:{}};
+const SORTS={entry_desc:'按录入日期降序',start_asc:'按起租日升序',start_desc:'按起租日降序',end_asc:'按到期日升序'};
+const $=i=>document.getElementById(i);
+function render(){let r=DATA.filter(c=>(!S.b||c.bld==S.b)&&(!S.s||c.st==S.s)&&['op','sign','pay'].every(k=>!S.f[k].length||S.f[k].includes(c[k]))&&(!S.d.s1||c.start>=S.d.s1)&&(!S.d.s2||c.start<=S.d.s2)&&(!S.d.e1||c.end>=S.d.e1)&&(!S.d.e2||c.end<=S.d.e2));
+const [k,dir]=S.o.split('_');r.sort((a,b)=>(a[k]<b[k]?-1:a[k]>b[k]?1:0)*(dir=='asc'?1:-1));
+$('cnt').textContent='共 '+r.length+' 份合同 · '+SORTS[S.o];
+$('l').innerHTML=r.map(c=>`<a class="card" href="contract-${c.id.toLowerCase()}.html"><div class="row"><b style="font-weight:500">合同 ${c.id} · ${c.who}</b><span class="tag ${c.st=='生效中'?'on':''}">${c.st}</span></div><div class="helper">${c.bld} · 房间 ${c.rooms.join('、')} · ${c.start} ~ ${c.end}</div><div class="helper">${c.st=='已终止'?'终止原因：'+c.reason:(c.src?'来源：合同 '+c.src+' '+c.srcr+'后续签':'新签')} · 录入 ${c.entry} · ${c.op}</div></a>`).join('')||'<div class="helper">无符合条件的合同</div>';
+$('fb-b').textContent=(S.b||'楼栋')+' ▾';$('fb-s').textContent=(S.s||'合同状态')+' ▾';
+const nf=['op','sign','pay'].reduce((n,k)=>n+S.f[k].length,0)+Object.values(S.d).filter(Boolean).length;$('fb-f').textContent='筛选'+(nf?'('+nf+')':'');
+$('fb-b').classList.toggle('act',!!S.b);$('fb-s').classList.toggle('act',!!S.s);$('fb-f').classList.toggle('act',nf>0);$('fb-o').classList.toggle('act',S.o!='entry_desc')}
+let open='';function drop(kind,opts,key){const d=$('dd');if(open==kind){d.classList.remove('open');open='';return}open=kind;
+d.innerHTML=opts.map(([v,t])=>`<div data-v="${v}" class="${S[key]==v?'act':''}">${t}</div>`).join('');d.classList.add('open');
+d.querySelectorAll('div').forEach(x=>x.onclick=()=>{S[key]=x.dataset.v;d.classList.remove('open');open='';render()})}
+$('fb-b').onclick=()=>drop('b',[['','全部楼栋']].concat(Object.keys(BUILDINGS).map(b=>[b,b])),'b');
+$('fb-s').onclick=()=>drop('s',[['','全部状态'],['生效中','生效中'],['已终止','已终止']],'s');
+$('fb-o').onclick=()=>drop('o',Object.entries(SORTS),'o');
+let tmp;function chips(){document.querySelectorAll('.chips').forEach(ch=>{const k=ch.dataset.k;const vals=[...new Set(DATA.map(c=>c[k]))];ch.innerHTML=vals.map(v=>`<span class="${tmp.f[k].includes(v)?'act':''}">${v}</span>`).join('');ch.querySelectorAll('span').forEach(s=>s.onclick=()=>{const a=tmp.f[k],i=a.indexOf(s.textContent);i<0?a.push(s.textContent):a.splice(i,1);chips()})});['s1','s2','e1','e2'].forEach(i=>$(i).value=tmp.d[i]||'')}
+$('fb-f').onclick=()=>{$('dd').classList.remove('open');open='';tmp=JSON.parse(JSON.stringify({f:S.f,d:S.d}));chips();$('mask').classList.add('open')};
+$('x').onclick=()=>$('mask').classList.remove('open');
+$('reset').onclick=()=>{tmp={f:{op:[],sign:[],pay:[]},d:{}};chips()};
+$('ok').onclick=()=>{['s1','s2','e1','e2'].forEach(i=>tmp.d[i]=$(i).value);S.f=tmp.f;S.d=tmp.d;$('mask').classList.remove('open');render()};
+render();</script></body></html>
