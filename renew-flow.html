@@ -11,7 +11,7 @@ const replay=!!(c&&c.st=='已终止'&&c.flow==T);
 if(!c||(!replay&&!['生效中','已到期'].includes(c.st))){$('app').innerHTML='<div class="helper">请从生效中或已到期合同的详情页发起办理。</div><a class="btn" href="contracts.html">去合同管理</a>';throw 0}
 const pre={...c,end:c.oend||c.end,st:replay?'生效中':c.st};const expired=pre.st=='已到期';
 const back='contract-'+c.id.toLowerCase()+'.html';document.querySelector('.nav .back').href=back;
-const R={H1:{out:['303'],x:'2026-04-15',rent:2000,dep:2000,carry:[1,1]},H3:{out:['306'],inR:'307',x:'2026-05-31',rent:2200,dep:2200,carry:[1,0]},H6:{rent:1900,dep:1900,carry:[1,0]},H10:{out:['502'],x:'2026-05-31'}}[c.id]||{};
+const R={H1:{out:['303'],x:'2026-04-15',carry:[1,1]},H3:{out:['306'],inR:'307',x:'2026-05-31',carry:[1,0]},H6:{rent:1900,dep:1900,carry:[1,0]},H10:{out:['502'],x:'2026-05-31'}}[c.id]||{};
 const A=r=>pre.bld+r;
 function rentBetween(rent,a,b){if(a>b)return 0;let t=0,d=pd(a);const e=pd(b);while(d<=e){const y=d.getFullYear(),m=d.getMonth(),me=new Date(y,m,dim(y,m));const end=me<e?me:e;const days=Math.round((end-d)/864e5)+1;t+=days==dim(y,m)?rent:rent*days/dim(y,m);d=new Date(y,m+1,1)}return Math.round(t*100)/100}
 function periodEnd(s0,step,day,cap){let s=pd(s0);for(let i=0;i<400;i++){const n=new Date(s.getFullYear(),s.getMonth()+step,s.getDate());n.setDate(n.getDate()-1);if(ds(n)>=day)return ds(n)<cap?ds(n):cap;s=new Date(n);s.setDate(s.getDate()+1)}return cap}
@@ -25,18 +25,20 @@ const card=`<div class="status ${pre.st=='生效中'?'on':''}"><div class="t">${
 const S=[];
 if(T=='checkout')S.push({m:'all',t:'退租房间与退租日',h:(single?'<div class="helper">单间合同：整单退租</div>':'<div class="helper">全选 = 整单退租（不产生新合同）；部分勾选 = 部分退租（终止原合同并开始新合同）</div>')+pre.rooms.map(r=>chk('out',r,A(r),single||(R.out||[]).includes(r),single)).join('')+`<div class="helper" id="mode"></div><label class="f">退租日<input class="input" type="date" id="x" value="${dX}" min="${pre.start}" max="${maxX}"></label>${expired?'<div class="helper">合同已到期：到期日之后至退租日按原日租金计超期占用</div>':''}<div class="err-t" id="e1"></div>`});
 if(T=='swap')S.push({m:'all',t:'换出房间、换入房间与换房日',h:pre.rooms.map(r=>chk('out',r,'换出 '+A(r),(R.out||[]).includes(r)||single)).join('')+`<label class="f">换入房间（同楼栋空置）<select class="input" id="inR">${vac.map(r=>`<option value="${r}">${A(r)}</option>`).join('')||'<option value="">本楼栋无空置房间</option>'}</select></label><label class="f">换房日（原合同终止日）<input class="input" type="date" id="x" value="${dX}" min="${pre.start}" max="${maxX}"></label><div class="err-t" id="e1"></div>`});
-S.push({m:'partial',t:'新合同条款（将开始新合同）',h:`<div class="row"><span>合同房间</span></div><div id="nr"></div><div class="row"><span>起租日</span><b id="ns"></b></div><label class="f">到期日<input class="input" type="date" id="ne"></label><label class="f">月租（元）<input class="input" type="number" id="rent" value="${R.rent||pre.rent}"></label><label class="f">押金（元）<input class="input" type="number" id="dep" value="${R.dep||pre.dep}"></label><label class="f">付款方式<select class="input" id="pay"><option ${pre.pay=='按季'?'selected':''}>按季</option><option ${pre.pay=='按月'?'selected':''}>按月</option></select></label>${T=='renew'&&expired?'<div class="helper">已到期续租：新合同自原到期日次日起算，期间不计超期占用</div>':''}<div class="err-t" id="e2"></div>`});
+S.push({m:'partial',t:'新合同条款（将开始新合同）',h:`<div class="row"><span>合同房间</span></div><div id="nr"></div><div class="row"><span>起租日</span><b id="ns"></b></div><label class="f">到期日<input class="input" type="date" id="ne"></label><label class="f">月租（元）<input class="input" type="number" id="rent" value="${R.rent||pre.rent}"></label><div class="helper" id="rh"></div><label class="f">押金（元）<input class="input" type="number" id="dep" value="${R.dep||pre.dep}"></label><label class="f">付款方式<select class="input" id="pay"><option ${pre.pay=='按季'?'selected':''}>按季</option><option ${pre.pay=='按月'?'selected':''}>按月</option></select></label>${T=='renew'&&expired?'<div class="helper">已到期续租：新合同自原到期日次日起算，期间不计超期占用</div>':''}<div class="err-t" id="e2"></div>`});
 S.push({m:'partial',t:'结算与结转',h:`<div class="sec" id="calc"></div><div class="step" style="margin-top:8px">结转抵扣新合同账单</div>${chk('k','dep','',R.carry?R.carry[0]:1)}${chk('k','first','',R.carry?R.carry[1]:0)}<div class="sec" id="carry" style="margin-top:8px"></div>`});
 S.push({m:'whole',t:'结算（整单退租 · 现金结清）',h:'<div class="sec" id="calcw"></div><div class="sec" id="cashw"></div>'});
 S.push({m:'all',t:'确认摘要',h:'<div id="sum"></div>'});
 $('app').innerHTML=card+S.map((s,i)=>`<div class="stp" data-i="${i}"><div class="step" data-t="${s.t}"></div>${s.h}</div>`).join('')+'<div class="btns"><button class="btn sec2" id="prev">上一步</button><button class="btn" id="next">下一步</button></div>';
-const st=[...document.querySelectorAll('.stp')];let cur=0,res,neEdited=false;$('ne').oninput=()=>neEdited=true;
+const st=[...document.querySelectorAll('.stp')];let cur=0,res,neEdited=false,rEdited=false,dEdited=false;$('ne').oninput=()=>neEdited=true;$('rent').oninput=()=>rEdited=true;$('dep').oninput=()=>dEdited=true;
+const rr=r=>(pre.rr&&pre.rr[r]!=null)?pre.rr[r]:(LIST[r]||0);
 function V(){const out=[...document.querySelectorAll('[name=out]:checked')].map(e=>e.value);const keep=pre.rooms.filter(r=>!out.includes(r));
 const whole=T=='checkout'&&out.length==pre.rooms.length&&out.length>0;const X=T=='renew'?pre.end:$('x').value;const inR=T=='swap'?$('inR').value:'';return {out,keep,whole,X,inR}}
 function active(){const v=V();return S.map((s,i)=>i).filter(i=>S[i].m=='all'||(S[i].m=='whole'?v.whole:(T!='checkout'||!v.whole)))}
 function calc(){const v=V(),{out,keep,whole,X,inR}=v;
 if($('mode'))$('mode').textContent=out.length==0?'':whole?'当前：整单退租':'当前：部分退租';
 const nrooms=T=='checkout'?keep:T=='swap'?keep.concat(inR?[inR]:[]):pre.rooms;const naddr=nrooms.map(A);
+if(T!='renew'){const sum=nrooms.reduce((a,r)=>a+rr(r),0);if(!rEdited)$('rent').value=sum;if(!dEdited)$('dep').value=sum;$('rh').textContent='默认 = 新合同各房间月租之和：'+nrooms.map(r=>A(r)+' '+rr(r)).join(' + ')+' = '+sum+'（可修改）'}
 const ns=addD(X,1);if(!neEdited)$('ne').value=(T=='renew'||expired)?addY(ns):pre.end;const ne=$('ne').value;
 const rent=+$('rent').value||0,dep=+$('dep').value||0,pay=$('pay').value;
 let lines=[],tot;
