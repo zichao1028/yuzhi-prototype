@@ -113,8 +113,9 @@ P.register=(q)=>{if(q.new){D=newDraft();if(q.r)D.rooms.push({r:q.r,rent:''});dsa
  ${sub('go-emg','紧急联系人',d.eName?esc(d.eName):'选填','reg-emg')}
  <div class="err-t" id="rerr"></div></div><div class="actionbar"><button class="btn" id="to-preview" onclick="toPreview()">去核对账单</button></div>`+tabbar('home')};
 function searchHtml(res){const d=dget();if(!d.q.trim())return '<div class="helper">输入关键字搜索全部房间（共 '+K.allRooms().length+' 间）</div>';
- return res.map(x=>{const on=d.rooms.some(y=>y.r==x.r);return `<div class="row sr" data-r="${x.r}"><span>${esc(x.addr)} <span class="tag">${roomSt(x.r)}</span></span><b>${on?'已添加':`<button class="mini" onclick="regAdd('${x.r}')">添加</button>`}</b></div>`}).join('')||'<div class="helper">无匹配房间</div>'}
+ return res.map(x=>{const on=d.rooms.some(y=>y.r==x.r);return on?`<div class="row sr on" data-r="${x.r}"><span>${esc(x.addr)} <span class="tag">${roomSt(x.r)}</span></span><b>已添加</b></div>`:`<div class="row sr" data-r="${x.r}" role="button" tabindex="0" onclick="regAdd('${x.r}')" style="cursor:pointer;min-height:44px;align-items:center"><span>${esc(x.addr)} <span class="tag">${roomSt(x.r)}</span></span><b class="mini" style="pointer-events:none">添加</b></div>`}).join('')||'<div class="helper">无匹配房间</div>'}
 window.regSearch=()=>{document.getElementById('sres').innerHTML=searchHtml(K.searchRooms(dget().q))};
+
 window.regAdd=r=>{const d=dget();if(!d.rooms.some(x=>x.r==r))d.rooms.push({r,rent:''});dsave();depAuto(1);render()};
 window.regDel=r=>{const d=dget();d.rooms=d.rooms.filter(x=>x.r!=r);dsave();depAuto(1);render()};
 window.regRent=(r,v)=>{dget().rooms.find(x=>x.r==r).rent=v;dsave();document.getElementById('rsum').textContent=money(K.sum(D.rooms.map(x=>+x.rent||0)));depAuto()};

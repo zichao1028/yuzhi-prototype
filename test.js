@@ -25,12 +25,18 @@ console.log('seed checks',pass,'pass',fail,'fail');
  const G=async h=>{await pg.goto(base+'#'+h);await pg.waitForSelector('.nav')};const st=()=>pg.evaluate(()=>window.__state());const txt=()=>pg.evaluate(()=>document.body.innerText);
  const clk=async sel=>{await pg.$eval(sel,e=>e.click());await new Promise(r=>setTimeout(r,150))};const typ=async(sel,v)=>{await pg.$eval(sel,(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))},v);await new Promise(r=>setTimeout(r,60))};
  await pg.goto(base);await pg.evaluate(()=>{localStorage.clear();sessionStorage.clear()});await G('home');await clk('#reset');
+ // F0 regression: search → click result ROW (not button) → appears in selected chips
+ await G('register?new=1');await pg.waitForSelector('#f-q');await typ('#f-q','B201');
+ ok((await pg.$('.sr[data-r="B201"]')),'search hit B201');
+ await pg.click('.sr[data-r="B201"]');await new Promise(r=>setTimeout(r,200));
+ ok((await pg.$$eval('.chip',es=>es.map(e=>e.dataset.r))).includes('B201'),'click result row adds to selected');
+ ok((await pg.evaluate(()=>window.__draft().rooms.map(x=>x.r))).includes('B201'),'draft has B201');
  // F1 租客登记: from room 304, fuzzy search adds 307, sub-pages keep draft, preview → confirm → result → contract
  await G('room?r=304');await clk('#room-register');await pg.waitForSelector('#f-q');
  ok((await pg.$$('.chip')).length==1,'room preselected');
  await typ('#f-q','LOFTS b2');ok((await pg.$$eval('.sr',es=>es.map(e=>e.dataset.r))).join()=='B201,B202,B203','fuzzy case-insensitive multi-keyword');
  await typ('#f-q','30');ok((await pg.$$('.sr')).length>=7,'partial room number match');ok((await pg.$eval('.sr[data-r="301"]',e=>e.innerText)).includes('已入住'),'search shows doc 租赁状态');ok((await pg.$eval('.sr[data-r="304"]',e=>e.innerText)).includes('无租赁'),'无租赁 term');
- await clk('.sr[data-r="307"] button');ok((await pg.$$('.chip')).length==2,'added 307');
+ await pg.click('.sr[data-r="307"]');ok((await pg.$$('.chip')).length==2,'added 307');
  await clk('.sign:nth-child(2)');await typ('#f-phone','13811112222');await typ('#f-who','钱八');await typ('#f-idType','身份证');await typ('#f-idNo','310101199909099999');
  await typ('#f-start','2026-10-20');await typ('#f-end','2026-10-01');await typ('#f-payN','1');await typ('#f-depM','1');
  await typ('.rent[data-r="304"]','1000');await typ('.rent[data-r="307"]','2000');ok((await pg.$eval('#f-dep',e=>e.value))=='3000','deposit default 押1×合计');
@@ -56,7 +62,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok(await pg.evaluate(()=>!sessionStorage.getItem('yuzhi-reg-draft')),'draft cleared after confirm');
  await G('contract?id='+nc.id+'&tab=入住人');ok((await txt()).includes('待搬入'),'rooms 待搬入 before start');ok(!!(await pg.$('#btn-checkout')),'checkout allowed before start');
  // 租期冲突: occupied room selectable, blocked on overlap with reason; allowed when no overlap
- await G('register?new=1');await pg.waitForSelector('#f-q');await typ('#f-q','304');await clk('.sr[data-r="304"] button');await clk('.sign:nth-child(1)');await typ('#f-phone','13811114444');await typ('#f-start','2026-12-01');await typ('#f-end','2027-03-31');await typ('.rent[data-r="304"]','900');
+ await G('register?new=1');await pg.waitForSelector('#f-q');await typ('#f-q','304');await pg.click('.sr[data-r="304"]');await clk('.sign:nth-child(1)');await typ('#f-phone','13811114444');await typ('#f-start','2026-12-01');await typ('#f-end','2027-03-31');await typ('.rent[data-r="304"]','900');
  await clk('#to-preview');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('租期冲突'),'overlap blocked with reason');
  await typ('#f-start','2027-01-20');await typ('#f-end','2027-06-30');await clk('#to-preview');ok(!!(await pg.$('#do-register')),'non-overlapping period on occupied room allowed');
  // F1b multi-building registration (no building restriction)
