@@ -88,6 +88,26 @@ for(const dep of [1000,2500,0]){
  K.setWorkOrderStatus(t,w.id,'已完成');ok(K.roomStatus(t,'304')==='空房可租','work order done clears repair');
  ok(K.matchRoomFilters(t,'304',{status:'空房可租'},K.TODAY),'filter 空房可租');
 }
+// gap 1–8 core regression
+{
+ const original=JSON.parse(JSON.stringify(K.getBuildings())),t=K.seed();
+ t.contracts[0].pendingApprove=true;ok(!K.roomBizFlags(t,'301',K.TODAY).includes('合同待审批'),'approval residue removed');
+ const complaint=K.createWorkOrder(t,{type:'投诉',r:'304',desc:'噪声'});ok(!K.room('304').repair&&K.roomStatus(t,'304')==='空房可租','complaint does not repair');
+ K.WO_TYPES.forEach(type=>{const w=K.createWorkOrder(t,{type,desc:'测试'});K.setWorkOrderStatus(t,w.id,'已挂起');ok(K.openWorkOrders(t).some(x=>x.id===w.id),'suspended open '+type);K.setWorkOrderStatus(t,w.id,'已关闭');ok(!K.openWorkOrders(t).some(x=>x.id===w.id),'closed excluded '+type)});
+ const w=K.createWorkOrder(t,'304','维修');ok(K.room('304').repair,'repair flips');K.setWorkOrderStatus(t,w.id,'已关闭');ok(!K.room('304').repair,'repair closes despite complaint');
+ const b=K.createBooking(t,{r:'304',who:'预定人',phone:'13800001111'});ok(K.roomBizFlags(t,'304',K.TODAY).includes('已预定')&&K.roomStatus(t,'304')==='空房可租','booking flag only');
+ let rejected=false;try{K.createBooking(t,{r:'304',who:'重复',phone:'13800001111'})}catch(e){rejected=true}ok(rejected,'duplicate booking blocked');
+ const f={rooms:[{r:'304'}],phone:'13800001111',rent:1000,start:'2026-11-01',end:'2026-12-31',sign:'纸质合同',payN:1,depM:1,dep:1000,payRule:{type:'before',days:7}};
+ ok(K.validateReg(t,f).some(e=>e.includes('预定')),'booking blocks registration');const pre=K.convertBooking(t,b.id);ok(pre.who==='预定人'&&b.status==='有效','conversion leaves booking until success');
+ const c=K.register(t,{...f,bookingId:b.id});ok(b.status==='已转登记'&&b.cid===c.id,'successful conversion');
+ const b2=K.createBooking(t,{r:'307',who:'取消',phone:'13800001111'});K.cancelBooking(t,b2.id);ok(b2.status==='已取消','cancel booking');
+ const paid=t.bills.find(b=>K.billPaid(b)>0),cash=K.billPaid(paid);K.voidBill(t,paid.id);ok(K.billStatus(paid)==='已作废'&&K.billPaid(paid)===cash,'void keeps payments');
+ ok(K.vacantRooms(t).length===K.allRooms().filter(x=>K.roomStatus(t,x.r)==='空房可租').length,'vacant count');
+ K.batchPrice(t,['307','B101'],{monthly:1234,depMode:'months',dep:2});ok(K.room('307').price.monthly===1234&&K.room('B101').price.dep===2,'batch pricing');
+ const oc=K.createOwnerContract(t,{building:Object.keys(K.getBuildings())[0],who:'业主',phone:'13800001111',start:'2026-01-01',end:'2027-01-01'});ok(oc.status==='生效中','owner create');K.terminateOwnerContract(t,oc.id);ok(oc.status==='已终止','owner terminate');
+ const inv=K.createInvoice(t,{cid:c.id,title:'个人',amount:100});ok(inv.status==='待开','invoice create');const l=K.addLedgerNote(t,{dir:'out',name:'维护',amount:20,date:K.TODAY});ok(l.net===-20&&l.method==='线下记账','manual ledger');
+ K.setBuildings(original);
+}
 console.log('seed checks',pass,'pass',fail,'fail');
 // ---- ② flows ----
 (async()=>{const pp=require('/tmp/pt/node_modules/puppeteer-core');const br=await pp.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const pg=await br.newPage();await pg.setViewport({width:390,height:844});
@@ -135,6 +155,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await G('bills?t=全部');ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
  await G('rooms');ok(!!(await pg.$('#btn-room-filter'))||(await txt()).includes('筛选'),'room filter entry');
  await G('rooms?panel=1');ok((await txt()).includes('空房不可租')&&(await txt()).includes('业务状态')&&!(await txt()).includes('污房'),'room filter panel statuses');
+ await G('home');ok(!!(await pg.$('#home-fab')),'home FAB');await clk('#home-fab');ok((await txt()).includes('合同多房')&&(await txt()).includes('录户号'),'FAB menu');
  ok(!(await txt()).match(/标为脏|清除脏|脏房状态/),'room filter has no dirty business');
  const z=S.contracts.find(c=>c.who=='张三');
  await G('contract?id='+z.id+'&tab=账单');
@@ -230,6 +251,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok(oldW.voided&&neu&&neu.rent==2300&&K.billsOf(S,oldW.id).every(b=>b.done&&b.excluded),'resign voids old + excludes bills');
  // reset
  await G('me');await clk('#reset');S=await st();ok(S.contracts.length==6&&S.settlements.length==1,'reset');
- for(const h of ['home','contracts','bills','bills?side=out','rooms','room?r=301','settlement?id='+S.settlements[0].id]){await G(h);ok((await txt()).length>20,'render '+h)}
+ for(const h of ['workOrders','workOrderNew','vacant','bookings','bookingNew','batchPrice','batchEdit','ownerContracts','ownerContractNew','invoices','ledgerNote','meterAccount','home','contracts','bills','bills?side=out','rooms','room?r=301','settlement?id='+S.settlements[0].id]){await G(h);ok((await txt()).length>20,'render '+h)}
+ await G('home');ok(!!(await pg.$('#home-fab')),'home FAB');await clk('#home-fab');ok((await txt()).includes('合同多房')&&(await txt()).includes('录户号'),'FAB menu');
  ok(!(await txt()).match(/H\d{3}/),'no H codes');
  console.log('total',pass,'pass',fail,'fail');await br.close();process.exit(fail?1:0)})();
