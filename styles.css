@@ -167,3 +167,20 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 .bd-bar .bd-on{flex:1;background:#1a75ff;border:1px solid #1a75ff;color:#fff}
 .bd-ledger-link{margin-left:auto;font-size:14px}
 .bd-page.has-ab,.wrap.has-ab.bd-page{padding-bottom:150px}
+
+/* Shared top-down filter sheets, anchored immediately below the filter row. */
+.room-filter-anchor{position:relative;z-index:30}
+.filter-dd-mask{position:fixed;inset:0;border:0;background:rgba(0,0,0,.4);z-index:1;cursor:pointer}
+.room-filter-anchor .room-filter-row{position:relative;z-index:3;background:#fff}
+.filter-dd-sheet{position:absolute;top:100%;left:0;right:0;background:#fff;z-index:2;max-height:calc(100dvh - 190px);overflow:auto;box-shadow:0 6px 12px #0001;animation:filter-dd-open .15s ease-out}
+.filter-dd-sec{padding:12px}
+.filter-dd-sec-title{font-size:14px;margin:0 0 12px;font-weight:600}
+.filter-dd-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.filter-dd-chips button{border:1px solid transparent;border-radius:4px;background:#f2f3f6;padding:9px 2px;font:inherit;font-size:12px;color:#444;cursor:pointer}
+.filter-dd-chips button.on{background:#e9f0ff;color:#1764e8;border-color:#1764e8}
+.filter-dd-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;font-size:13px}
+.filter-dd-fields .input{margin-top:6px;width:100%;min-width:0;box-sizing:border-box}
+.filter-dd-foot{display:flex;gap:10px;padding:12px;border-top:1px solid #eee;background:#fff;position:sticky;bottom:0}
+.filter-dd-foot button{border:0;border-radius:4px;background:#eee;padding:11px;flex:1;font:inherit;cursor:pointer}
+.filter-dd-foot button:last-child{background:#0655ff;color:#fff;flex:1.5}
+@keyframes filter-dd-open{from{opacity:.6;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
