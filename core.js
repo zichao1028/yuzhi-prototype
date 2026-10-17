@@ -30,7 +30,7 @@ const addrOf=(c,r)=>bldOf(r)+r;
 function titleText(c){const bs=[...new Set(c.rooms.map(x=>bldOf(x.r)))];return bs.length==1?bs[0]+c.rooms.map(x=>x.r).join('、'):c.rooms.map(x=>bldOf(x.r)+x.r).join('、')}
 function leaseSt(st,c,x,today){if(x.out)return '已退租';if(today<c.start)return '待搬入';
  const prev=st.contracts.some(o=>o!==c&&o.start<c.start&&o.rooms.some(y=>y.r==x.r&&!y.out));return prev?'待搬入':'已入住'}
-function empty(){return {v:4,today:TODAY,seq:1,contracts:[],bills:[],payables:[],settlements:[],events:[]}}
+function empty(){return {v:5,today:TODAY,seq:1,contracts:[],bills:[],payables:[],settlements:[],events:[]}}
 const nid=(st,p)=>p+(st.seq++);
 const C=(st,id)=>st.contracts.find(c=>c.id==id);
 const billsOf=(st,cid)=>st.bills.filter(b=>b.cid==cid);
@@ -79,25 +79,63 @@ function setItems(st,bid,items,by){const b=st.bills.find(x=>x.id==bid);if(!items
  const before=billTotal(b);b.items=items.map(i=>({name:String(i.name).trim(),amount:r2(+i.amount),kind:i.kind||'adj',room:i.room}));syncTotal(b);log(st,b.cid,TODAY+' 10:00',by,'调整账单',`账单金额 ${before} → ${billTotal(b)}`,[]);return b}
 function payPayable(st,pid,date){const p=st.payables.find(x=>x.id==pid);if(p.paid>=p.amount)throw new Error('已完成');if(!date||date>TODAY)throw new Error('付款日期不能晚于今天');p.paid=p.amount;p.date=date;p.status='已完成';return p}
 // ---- 退租：整份合同结算 ----
-function finalPreview(st,cid,X){const c=C(st,cid);const err=[];if(c.term)err.push('合同已终止');
- if(!X)err.push('请填写实际退租日');else if(X<c.start)err.push('实际退租日不能早于合同开始日');else if(c.end>=TODAY&&X>c.end)err.push('实际退租日不能晚于合同结束日');else if(c.end<TODAY&&X>TODAY)err.push('已到期合同的实际退租日不能晚于今天');
+function needsSettle(c){return c.term&&c.term.settled===false}
+function finalPreview(st,cid,X){const c=C(st,cid);const err=[];
+ if(c.voided)err.push('合同已作废');
+ if(c.term&&c.term.settled!==false)err.push('合同已结算或已终止');
+ if(!X)err.push('请填写实际退租日');else{
+  const startX=c.term&&c.term.X?c.term.X:c.start;
+  if(X<c.start)err.push('实际退租日不能早于合同开始日');
+  else if(!c.term&&c.end>=TODAY&&X>c.end)err.push('实际退租日不能晚于合同结束日');
+  else if(!c.term&&c.end<TODAY&&X>TODAY)err.push('已到期合同的实际退租日不能晚于今天');
+ }
  if(err.length)return {err};
- const bl=billsOf(st,cid);const cash=sum(bl.flatMap(b=>b.pays).filter(p=>p.m=='线下收款').map(p=>p.amount));const refunded=sum(st.payables.filter(p=>p.cid==cid).map(p=>p.amount));
+ const bl=billsOf(st,cid);const cash=sum(bl.flatMap(b=>b.pays).filter(p=>p.m=='线下收款').map(p=>p.amount));const refunded=sum(st.payables.filter(p=>p.cid==cid&&!p.sid).map(p=>p.amount));
  const received=r2(cash-refunded);
  const actual=rentIn(c.rent,c.start,c.start,X);
  const rentLines=[{r:'合同',to:X,amount:actual}];
  const other=sum((c.fees||[]).map(f=>f.mode=='随租金付'?rentIn(f.amount,c.start,c.start,X):f.amount));
- return {err:[],cash,refunded,received,rentLines,actual,other}}
-function finalApply(st,cid,X,other,ded,dedr,by,at){const c=C(st,cid);const p=finalPreview(st,cid,X);if(p.err.length)throw new Error(p.err.join('；'));
- other=r2(+other);ded=r2(+ded);if(other<0||ded<0)throw new Error('金额不能为负');if(ded>0&&!String(dedr||'').trim())throw new Error('请填写扣款原因');
- const result=r2(p.received-p.actual-other-ded);
+ const refundToTenant=r2(Math.max(0,received-actual-other)); // 应退（未扣款前）
+ const chargeTenant=r2(Math.max(0,actual+other-received)); // 应收（未收足）
+ return {err:[],cash,refunded,received,rentLines,actual,other,refundToTenant,chargeTenant}}
+// 只办理退租：退房释放房源，不关账单、不出结算单
+function checkoutOnly(st,cid,X,reason,by,at){const c=C(st,cid);if(c.term)throw new Error('合同已退租');if(c.voided)throw new Error('合同已作废');
+ if(!X)throw new Error('请填写实际退租日');if(X<c.start)throw new Error('实际退租日不能早于合同开始日');
+ if(c.end>=TODAY&&X>c.end)throw new Error('实际退租日不能晚于合同结束日');if(c.end<TODAY&&X>TODAY)throw new Error('已到期合同的实际退租日不能晚于今天');
  c.rooms.forEach(x=>{x.out=X;c.occupants[x.r]=(c.occupants[x.r]||[]).map(o=>({...o,ended:o.ended||X}))});
+ c.term={X,at:at||TODAY+' 10:00',by:by||'房东',reason:reason||'退租',settled:false};
+ const ev=log(st,cid,at,by,'先退租',`${titleText(c)} · 实际退租日 ${X} · 账单待后续结算`,[],{X,settled:false});return ev}
+// 退租并结算 / 后续结算
+function settleApply(st,cid,opts,by,at){const c=C(st,cid);const X=opts.X||(c.term&&c.term.X);const p=finalPreview(st,cid,X);if(p.err.length)throw new Error(p.err.join('；'));
+ let refund=r2(opts.refund!=null?+opts.refund:p.refundToTenant);
+ let ded=r2(opts.ded!=null?+opts.ded:0);
+ let charge=r2(opts.charge!=null?+opts.charge:0);
+ if(refund<0||ded<0||charge<0)throw new Error('金额不能为负');
+ // 总计：应退为正表示向租客支付；net = refund - ded - charge；负数表示向租客收取
+ const result=r2(refund-ded-charge); // >0 应退租客；<0 应收租客
+ const net=result;
+ if(!c.term){c.rooms.forEach(x=>{x.out=X;c.occupants[x.r]=(c.occupants[x.r]||[]).map(o=>({...o,ended:o.ended||X}))})}
  billsOf(st,cid).forEach(b=>b.done=true);
- const sid=nid(st,'s');const s={id:sid,cid,X,cash:p.cash,refunded:p.refunded,received:p.received,rentLines:p.rentLines,actual:p.actual,other,ded,dedr:dedr||'',result,payable:null,receivable:null};
- if(result>0){const pb={id:nid(st,'p'),cid,amount:result,paid:0,due:X,date:null,status:'待付款',reason:'结算应退',sid};st.payables.push(pb);s.payable=pb.id}
- if(result<0){const b={id:nid(st,'b'),cid,k:'settle',n:0,s:null,e:null,due:X,items:[{name:'结算应收',amount:-result,kind:'settle'}],pays:[],done:false,sid};syncTotal(b);st.bills.push(b);s.receivable=b.id}
- st.settlements.push(s);c.term={X,at:at||TODAY+' 10:00',by:by||'房东',sid,reason:'退租'};
- const ev=log(st,cid,at,by,'退租',`${titleText(c)} · 实际退租日 ${X} · 结算结果 ${result>=0?'应退':'应收'} ${Math.abs(result)}`,[],{X,sid});return ev}
+ const sid=nid(st,'s');
+ const s={id:sid,cid,X,cash:p.cash,refunded:p.refunded,received:p.received,rentLines:p.rentLines,actual:p.actual,other:p.other,
+  refundToTenant:refund,ded,dedr:opts.dedr||'',result:net,reason:opts.reason||(c.term&&c.term.reason)||'到期',
+  afterStatus:opts.afterStatus||'转为空房可租',note:opts.note||'',media:opts.media||0,
+  payMethod:opts.payMethod||'生成待付账单',payAt:opts.payAt||(X+' 12:00'),inviteSign:!!opts.inviteSign,
+  payable:null,receivable:null};
+ if(net>0){const pb={id:nid(st,'p'),cid,amount:net,paid:0,due:X,date:null,status:'待付款',reason:'结算应退',sid};
+  if(opts.payMethod=='线下付款'){pb.paid=net;pb.date=X;pb.status='已完成'}
+  st.payables.push(pb);s.payable=pb.id}
+ if(net<0){const b={id:nid(st,'b'),cid,k:'settle',n:0,s:null,e:null,due:X,items:[{name:'结算应收',amount:-net,kind:'settle'}],pays:[],done:false,sid};syncTotal(b);st.bills.push(b);s.receivable=b.id}
+ st.settlements.push(s);
+ c.term={X,at:at||TODAY+' 10:00',by:by||'房东',sid,reason:s.reason,settled:true};
+ const ev=log(st,cid,at,by,'退租结算',`${titleText(c)} · ${X} · ${net>=0?'应退':'应收'} ${Math.abs(net)}`,[],{X,sid});return ev}
+function finalApply(st,cid,X,other,ded,dedr,by,at){ // 兼容旧调用：并结算快捷路径
+ const p=finalPreview(st,cid,X);if(p.err.length)throw new Error(p.err.join('；'));
+ const oth=other!=null?+other:p.other;
+ const raw=r2(p.received-p.actual-oth);
+ const refund=r2(Math.max(0,raw));
+ const charge=r2(Math.max(0,-raw));
+ return settleApply(st,cid,{X,refund,ded:ded||0,charge,dedr:dedr||'',reason:'退租',payMethod:'生成待付账单'},by,at)}
 function swapApply(st,cid,X,newRoom,end,rent,by,at){const c=C(st,cid);if(c.rooms.length!==1)throw new Error('多房合同不支持换房');if(c.term)throw new Error('合同已终止');
  if(!newRoom)throw new Error('请选择新房间');if(!end)throw new Error('请填写新合同结束日');
  const pv=finalPreview(st,cid,X);if(pv.err.length)throw new Error(pv.err.join('；'));
@@ -171,6 +209,6 @@ function seed(){const st=empty();const R=(f,at)=>register(st,{sign:'电子合同
  const f=R({who:'孙七',phone:'13500005005',idType:'身份证',idNo:'310101199101016666',rooms:[{r:'101'},{r:'102'}],rent:3300,start:'2026-09-01',end:'2027-08-31',payN:3,dep:3300,sign:'纸质合同',op:'王管家',fees:[{name:'卫生费',mode:'一次付清',amount:200}],prepaid:[0,1]},'2026-08-25 10:00');
  f.rooms[0].in='2026-09-01';f.occupants={'101':[{phone:f.phone,self:true,how:'手机号',st:'已生效'}],'102':[]};
  return st}
-const API={TODAY,BUILDINGS,allRooms,searchRooms,r2,pd,ds,addD,days,ms,rentIn,periods,dueOf,sum,billTotal,billPaid,billOut,billStatus,odays,payT,ruleT,cStatus,activeRooms,addrOf,titleText,leaseSt,empty,C,billsOf,bldOf,conflicts,roomBusy,validateReg,buildBills,previewBills,register,collect,itemsEditable,setItems,payPayable,finalPreview,finalApply,swapApply,renewApply,resignApply,closeForResign,addCustomBill,batchCollect,resetBills,softDelete,moveIn,addOcc,agreeOcc,delOcc,seed,log};
+const API={TODAY,BUILDINGS,allRooms,searchRooms,r2,pd,ds,addD,days,ms,rentIn,periods,dueOf,sum,billTotal,billPaid,billOut,billStatus,odays,payT,ruleT,cStatus,activeRooms,addrOf,titleText,leaseSt,empty,C,billsOf,bldOf,conflicts,roomBusy,validateReg,buildBills,previewBills,register,collect,itemsEditable,setItems,payPayable,finalPreview,finalApply,checkoutOnly,settleApply,needsSettle,swapApply,renewApply,resignApply,closeForResign,addCustomBill,batchCollect,resetBills,softDelete,moveIn,addOcc,agreeOcc,delOcc,seed,log};
 if(typeof module!=='undefined')module.exports=API;else root.CORE=API;
 })(this);

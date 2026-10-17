@@ -58,3 +58,5 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 .bc .bt{gap:8px}.bc .amount{white-space:nowrap;flex-shrink:0}
 
 .bill-actions .mini{flex:0 0 auto}.bill-actions .btn{flex:1}.bc .amount{font-weight:600}
+
+.tips{background:#fff7e6;border:1px solid #f0c78a;padding:10px;margin:8px 0;font-size:13px;color:#664}.tips b{display:block;margin-bottom:4px}.sheet-link{display:block;width:100%;background:#fff;border:0;border-top:1px solid #ddd;padding:14px;font-size:16px;font-family:inherit;cursor:pointer}.sheet-link.rec{color:#2169E0;font-weight:600}.sheet-link.cancel{color:#666;margin-top:8px;border-top:8px solid #eee}.settle-bar{bottom:108px}

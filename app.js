@@ -1,6 +1,6 @@
 // 有状态原型：状态保存在 localStorage，首次由 CORE.seed() 生成。所有页面均由状态渲染。
-(function(){const K=window.CORE,KEY='yuzhi-proto-state-v4';
-let S;function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||S.v!==4){S=K.seed();save()}}
+(function(){const K=window.CORE,KEY='yuzhi-proto-state-v5';
+let S;function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||S.v!==5){S=K.seed();save()}}
 function save(){S.bills.forEach(b=>b.total=K.billTotal(b));localStorage.setItem(KEY,JSON.stringify(S))}
 window.resetDemo=function(){if(!confirm('重置后，所有操作将被清除并恢复示例数据，确定？'))return;S=K.seed();save();go('home')};
 const T=K.TODAY,esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -41,10 +41,10 @@ P.contracts=(q)=>{const tabs=['全部','生效中','已到期','已终止'],t=q.
  return nav('合同管理',1,'contracts')+`<div class="wrap"><div class="tabs">${tabs.map(x=>`<span class="${x==t?'act':''}" onclick="go('contracts',{t:'${x}'})">${x}</span>`).join('')}</div>
  ${list.map(c=>`<a class="card cc" href="#contract?id=${c.id}" data-cid="${c.id}"><div class="l1">${titleOf(c)}</div><div class="l2"><span>${esc(c.who||'待承租人实名补充')} ${c.phone}</span><span class="tag ${K.cStatus(c,T)=='生效中'?'on':''}">${K.cStatus(c,T)}</span></div><div class="l2"><span>${c.start} 至 ${c.end}</span><span>月租 ${money(c.rent)}</span></div></a>`).join('')||'<div class="helper">暂无合同</div>'}</div>`+tabbar('home')};
 P.contract=(q)=>{const c=K.C(S,q.id);if(!c||c.removed)return nav('合同',1)+'<div class="wrap">合同不存在</div>';const st=K.cStatus(c,T),_tabs=['合同','账单','承租人','入住人'],tab=_tabs.includes(q.tab)?q.tab:'合同';const bl=K.billsOf(S,c.id);
- const canAct=!c.term&&!c.voided;
+ const canAct=!c.voided&&(!c.term||c.term.settled===false); const canBiz=!c.term&&!c.voided;
  let body='',bar='';
  if(tab=='合同'){
-  body=`${canAct?`<button class="btn sec2" id="invite-bind" onclick="go('contract',{id:'${c.id}',tab:'入住人'})">邀请绑定</button><div style="height:8px"></div>`:''}
+  body=`${canBiz?`<button class="btn sec2" id="invite-bind" onclick="go('contract',{id:'${c.id}',tab:'入住人'})">邀请绑定</button><div style="height:8px"></div>`:''}
   <div class="sec"><h3>合同详情</h3>
    ${row('合同期间',c.start+' 至 '+c.end)}
    ${row('月租金（租金单价）',money(c.rent)+'/月')}
@@ -52,7 +52,6 @@ P.contract=(q)=>{const c=K.C(S,q.id);if(!c||c.removed)return nav('合同',1)+'<d
    ${row('付款方式',K.payT(c))}
    ${row('支付时间',K.ruleT(c.payRule))}
    ${row('签约方式',c.sign)}
-   ${row('房间',c.rooms.map(x=>esc(K.addrOf(c,x.r))+(x.out?'（已退租 '+x.out+'）':' · '+K.leaseSt(S,c,x,T))).join('<br>'))}
    ${(c.fees||[]).map(f=>row(esc(f.name),`${money(f.amount)}${f.mode=='随租金付'?'/月 · 随租金付':' · 一次付清'}`)).join('')||row('其他费用','无')}
    ${row('业务状态',st)}
   </div>
@@ -65,10 +64,10 @@ P.contract=(q)=>{const c=K.C(S,q.id);if(!c||c.removed)return nav('合同',1)+'<d
    ${c.emergency?row('紧急联系人',`${esc(c.emergency.name)}（${esc(c.emergency.rel)}）${c.emergency.phone}`):''}
    ${c.source?row('签约来源',esc(c.source.type)+(c.source.from?` · <a href="#contract?id=${c.source.from}">查看关联合同</a>`:'')):row('签约来源','新签')}
   </div>
-  ${c.term?`<div class="sec"><h3>终止信息</h3>${row('实际退租日',c.term.X)}${row('办理人',esc(c.term.by))}<a class="ref" href="#settlement?id=${c.term.sid}">查看结算单 ›</a></div>`:''}
+  ${c.term?`<div class="sec"><h3>终止信息</h3>${row('实际退租日',c.term.X)}${row('办理人',esc(c.term.by))}${row('结算状态',c.term.settled===false?'待结算':'已结算')}${c.term.sid?`<a class="ref" href="#settlement?id=${c.term.sid}">查看结算单 ›</a>`:c.term.settled===false?`<a class="ref" id="go-settle" href="#checkoutSettle?id=${c.id}">去结算 ›</a>`:''}</div>`:''}
   ${c.voided?`<div class="sec"><h3>作废信息</h3>${row('作废原因','重签')}${row('作废日期',c.voidedAt||'—')}${c.resignTo?`<a class="ref" href="#contract?id=${c.resignTo}">查看新合同 ›</a>`:''}</div>`:''}
   ${!c.term&&!c.voided&&st=='已到期'?`<div class="sec"><h3>到期信息</h3>${row('到期日',c.end)}<div class="helper">已到期未退租，请办理退租或续租。</div></div>`:''}`;
-  bar=canAct?contractActionBar(c):'';
+  bar=contractActionBar(c);
  }
  if(tab=='账单'){
   const pending=bl.filter(b=>['待收','部分收款'].includes(K.billStatus(b)));
@@ -80,9 +79,9 @@ P.contract=(q)=>{const c=K.C(S,q.id);if(!c||c.removed)return nav('合同',1)+'<d
    <div class="sec"><div class="row"><span><b>已完成（${done.length}）</b></span><b>${money(sumD)} 合计</b></div>
    ${done.map(b=>contractBillCard(b)).join('')||'<div class="helper">暂无</div>'}</div>
    ${pays.length?`<div class="sec"><h3>付款账单</h3>${pays.map(p=>payCard(p,c)).join('')}</div>`:''}`;
-  bar=canAct?`<div class="actionbar bill-actions"><button class="mini" onclick="flash('发票：待实现')">发票</button><button class="btn sec2" id="btn-reset-bills" onclick="doResetBills('${c.id}')">重置账单</button><button class="btn sec2" id="btn-add-bill" onclick="doAddBill('${c.id}')">添加账单</button><button class="btn" id="btn-batch-collect" onclick="openBatchCollect('${c.id}')">批量收款</button></div>`:'';
+  bar=canBiz?`<div class="actionbar bill-actions"><button class="mini" onclick="flash('发票：待实现')">发票</button><button class="btn sec2" id="btn-reset-bills" onclick="doResetBills('${c.id}')">重置账单</button><button class="btn sec2" id="btn-add-bill" onclick="doAddBill('${c.id}')">添加账单</button><button class="btn" id="btn-batch-collect" onclick="openBatchCollect('${c.id}')">批量收款</button></div>`:'';
  }
- if(tab=='承租人'){body=`<div class="sec"><h3>承租人</h3>${row('姓名',esc(c.who)||'待承租人实名补充')}${row('手机号',c.phone)}${row('证件类型',esc(c.idType)||'—')}${row('证件照',c.idPhotos?c.idPhotos+' 张':'—')}${row('证件号码',c.idNo?c.idNo.slice(0,4)+'**********'+c.idNo.slice(-4):'—')}</div>`;bar=canAct?contractActionBar(c):''}
+ if(tab=='承租人'){body=`<div class="sec"><h3>承租人</h3>${row('姓名',esc(c.who)||'待承租人实名补充')}${row('手机号',c.phone)}${row('证件类型',esc(c.idType)||'—')}${row('证件照',c.idPhotos?c.idPhotos+' 张':'—')}${row('证件号码',c.idNo?c.idNo.slice(0,4)+'**********'+c.idNo.slice(-4):'—')}</div>`;bar=contractActionBar(c)}
  if(tab=='入住人'){body=c.rooms.map(x=>`<div class="sec"><h3>${esc(K.addrOf(c,x.r))} · ${c.term||c.voided?'本合同入住期间 '+(x.in?x.in:'未记录')+' 至 '+(x.out||'—'):K.leaseSt(S,c,x,T)+(x.in?' · 实际入住时间 '+x.in:'')}</h3>
   ${(c.occupants[x.r]||[]).map((o,i)=>`<div class="row"><span>${o.phone}${o.self?' <span class="tag">本人</span>':''} <span class="helper">${o.how}</span></span><b><span class="tag ${o.st=='已生效'?'ok':'warn'}">${o.st}</span> ${canAct&&!x.out?`${o.st=='待同意'?`<button class="mini" onclick="occAgree('${c.id}','${x.r}',${i})">同意</button>`:''}<button class="mini" onclick="occDel('${c.id}','${x.r}',${i})">删除</button>`:''}</b></div>`).join('')||'<div class="helper">暂无入住人</div>'}
   ${canAct&&!x.out?`<div class="btns">${!x.in?`<button class="mini mvin" onclick="moveIn('${c.id}','${x.r}')">记录实际入住时间</button>`:''}<button class="mini" onclick="occAdd('${c.id}','${x.r}')">手机号添加</button><button class="mini" onclick="alert('展示不记名二维码：入住人扫码申请后出现在列表（待同意）。')">二维码添加</button></div>`:''}</div>`).join('');bar=canAct?contractActionBar(c):''}
@@ -91,8 +90,11 @@ P.contract=(q)=>{const c=K.C(S,q.id);if(!c||c.removed)return nav('合同',1)+'<d
  <div class="mask" id="rm" onclick="this.classList.remove('open')"><div class="sheet"><b>房间</b>${c.rooms.map(x=>row(esc(K.addrOf(c,x.r)),x.out?'已退租 '+x.out:K.leaseSt(S,c,x,T))).join('')}<div class="btns"><button class="btn sec2">关闭</button></div></div></div>
  <div class="tabs">${_tabs.map(x=>`<span class="${x==tab?'act':''}" onclick="go('contract',{id:'${c.id}',tab:'${x}'})">${x}</span>`).join('')}</div>${body}</div>${bar}`+tabbar('home')};
 function contractBillCard(b){const s=K.billStatus(b),rel=dueLabel(b),amt=K.billTotal(b);return `<a class="card bc" href="#bill?id=${b.id}" data-bid="${b.id}"><div class="bt"><span>${esc(contractBillTitle(b))}</span><span class="amount">${amt>=0?'+ ':''}${money(amt)}</span></div><div class="bb"><span>账期 ${period(b)}</span></div><div class="bb"><span>应付日 ${b.due}</span><span>${rel?`<b class="od">${rel}</b>`:`<span class="tag ${s=='已收'||s=='已完成'?'ok':'warn'}">${s}</span>`}</span></div></a>`}
-function contractActionBar(c){const swap=c.rooms.length==1?`<button class="btn sec2" id="btn-swap" onclick="go('swap',{id:'${c.id}'})">换房</button>`:'';
- return `<div class="actionbar"><button class="mini" id="btn-more" onclick="openMoreSheet('${c.id}')">更多</button><button class="btn sec2" id="btn-resign" onclick="startResign('${c.id}')">重签</button>${swap}<button class="btn sec2" onclick="go('renew',{id:'${c.id}'})">续租</button><button class="btn" id="btn-checkout" onclick="go('checkout',{id:'${c.id}'})">退租</button></div>`}
+function contractActionBar(c){if(c.voided)return '';
+ if(c.term&&c.term.settled===false)return `<div class="actionbar"><button class="btn" id="btn-go-settle" onclick="go('checkoutSettle',{id:'${c.id}'})">去结算</button></div>`;
+ if(c.term)return '';
+ const swap=c.rooms.length==1?`<button class="btn sec2" id="btn-swap" onclick="go('swap',{id:'${c.id}'})">换房</button>`:'';
+ return `<div class="actionbar"><button class="mini" id="btn-more" onclick="openMoreSheet('${c.id}')">更多</button><button class="btn sec2" id="btn-resign" onclick="startResign('${c.id}')">重签</button>${swap}<button class="btn sec2" onclick="go('renew',{id:'${c.id}'})">续租</button><button class="btn" id="btn-checkout" onclick="openCheckoutSheet('${c.id}')">退租</button></div>`}
 function billCard(b,c){const s=K.billStatus(b),od=K.odays(b,T);return `<a class="card bc" href="#bill?id=${b.id}" data-bid="${b.id}"><div class="bt"><span>${esc(billTitle(b,c))}</span><span class="amount">${money(K.billTotal(b))}</span></div><div class="bb"><span>账期 ${period(b)}</span><span class="tag ${s=='已收'||s=='已完成'?'ok':'warn'}">${s}</span></div><div class="bb"><span>应付日 ${b.due}</span><span>待收 ${money(Math.max(0,K.billOut(b)))}${od?` <b class="od">逾期${od}天</b>`:''}</span></div><div class="helper">${esc(K.titleText(c))} · 共${c.rooms.length}间房</div></a>`}
 function payCard(p,c){return `<a class="card bc" href="#pay?id=${p.id}" data-pid="${p.id}"><div class="bt"><span>付款账单·${esc(c.who||'待承租人实名补充')}</span><span class="amount">${money(p.amount)}</span></div><div class="bb"><span>付款账单 · ${esc(p.reason)}</span><span class="tag ${p.status=='已完成'?'ok':'warn'}">${p.status}</span></div><div class="bb"><span>支付日 ${p.due}</span><span>${p.date?'已付 '+p.date:''}</span></div><div class="helper">${esc(K.titleText(c))} · 共${c.rooms.length}间房</div></a>`}
 P.bills=(q)=>{const side=q.side||'in',bld=q.bld||'全部楼栋';
@@ -125,11 +127,9 @@ P.pay=(q)=>{const p=S.payables.find(x=>x.id==q.id),c=K.C(S,p.cid);return nav('�
  <div class="sec">${row('应付金额',money(p.amount))}${row('支付日',p.due)}${row('付款日期',p.date||'—')}${p.sid?`<a class="ref" href="#settlement?id=${p.sid}">查看结算单 ›</a>`:''}</div>
  ${p.status!='已完成'?`<label class="f">付款日期<input class="input" id="paydate" type="date" value="${T}"></label><div class="err-t" id="perr"></div><button class="btn" id="do-pay" onclick="doPay('${p.id}')">确认已线下付款</button>`:''}</div>`+tabbar('bills')};
 window.doPay=id=>{try{K.payPayable(S,id,document.getElementById('paydate').value);save();render()}catch(e){document.getElementById('perr').textContent=e.message}};
-P.settlement=(q)=>{const s=S.settlements.find(x=>x.id==q.id),c=K.C(S,s.cid);return nav('结算单',1,'settlement')+`<div class="wrap"><a class="card" href="#contract?id=${c.id}">${titleOf(c)}</a><div class="sec"><h3>结算</h3>${row('实际退租日',s.X)}
- ${row('已收合计（线下收款，含押金）',money(s.cash))}${s.refunded?row('减：已退给租客',money(-s.refunded)):''}${row('= 已收净额',money(s.received))}
- ${s.rentLines.map(l=>row(`实际租金（${c.start} 至 ${l.to}）`,money(-l.amount))).join('')}${row('其他费用',money(-s.other))}${row('扣款'+(s.dedr?'（'+esc(s.dedr)+'）':''),money(-s.ded))}
- ${row('<b>结算结果</b>','<b id="sres">'+(s.result>=0?'应退 ':'应收 ')+money(Math.abs(s.result))+'</b>')}
- ${s.payable?`<a class="ref" href="#pay?id=${s.payable}">付款账单（退给租客）›</a>`:''}${s.receivable?`<a class="ref" href="#bill?id=${s.receivable}">收款账单（结算应收）›</a>`:''}</div></div>`+tabbar('home')};
+P.settlement=(q)=>{const s=S.settlements.find(x=>x.id==q.id),c=K.C(S,s.cid);return nav('结算单',1,'settlement')+`<div class="wrap"><a class="card" href="#contract?id=${c.id}">${titleOf(c)}</a><div class="sec"><h3>退租信息</h3>${row('退租原因',esc(s.reason||'—'))}${row('退租后状态',esc(s.afterStatus||'—'))}${row('实际退租时间',s.X)}</div><div class="sec"><h3>结算</h3>${row('应退租客金额',money(s.refundToTenant!=null?s.refundToTenant:Math.max(0,s.result)))}${row('扣除租客金额',money(s.ded))}${row('总计',(s.result>=0?'':'')+s.result.toFixed(2))}${row('付款方式',esc(s.payMethod||'—'))}${s.note?row('退租备注',esc(s.note)):''}${s.media?row('照片/视频',s.media+' 个'):''}
+ ${row('已收净额',money(s.received))}${s.rentLines.map(l=>row(`实际租金（${c.start} 至 ${l.to}）`,money(-l.amount))).join('')}${row('其他费用',money(-s.other))}
+ ${s.payable?`<a class="ref" href="#pay?id=${s.payable}">付款账单 ›</a>`:''}${s.receivable?`<a class="ref" href="#bill?id=${s.receivable}">收款账单 ›</a>`:''}</div></div>`+tabbar('home')};
 P.rooms=()=>nav('房源',1,'rooms')+'<div class="wrap">'+Object.entries(K.BUILDINGS).map(([b,rs])=>`<div class="sec"><h3>${b}</h3><div class="rooms">${rs.map(r=>`<a href="#room?r=${r}" data-room="${r}">${r}<span class="helper">&nbsp;${roomSt(r)}</span></a>`).join('')}</div></div>`).join('')+'</div>'+tabbar('rooms');
 P.room=(q)=>{const r=q.r,b=K.bldOf(r);const cs=S.contracts.filter(c=>c.rooms.some(x=>x.r==r)).reverse();const busy=K.roomBusy(S,r);
  return nav(b+r,1,'room')+`<div class="wrap"><div class="status"><div class="t">${roomSt(r)}</div></div>${!busy?`<a class="btn" id="room-register" href="#register?new=1&r=${r}">租客登记</a><div style="height:10px"></div>`:''}<div class="sec"><h3>租约</h3>${cs.map(c=>{const x=c.rooms.find(y=>y.r==r);return `<a class="ref" href="#contract?id=${c.id}">${esc(c.who||c.phone)} · ${c.start} 至 ${c.end}<span class="helper">${K.cStatus(c,T)} · 本房 ${K.leaseSt(S,c,x,T)}${x.out?' '+x.out:''} · 合同月租 ${money(c.rent)}</span></a>`}).join('')||'<div class="helper">暂无</div>'}</div></div>`+tabbar('rooms')};
@@ -137,7 +137,7 @@ P.room=(q)=>{const r=q.r,b=K.bldOf(r);const cs=S.contracts.filter(c=>c.rooms.som
 const DK='yuzhi-reg-draft';const newDraft=()=>({rooms:[],sign:'',phone:'',who:'',idNo:'',idType:'',idPhotos:0,start:'',end:'',rent:'',payN:'1',depM:'1',dep:'',depTouched:false,fees:[],ruleType:'before',ruleV:'7',scans:0,terms:'',note:'',eName:'',eRel:'',ePhone:'',q:'',resignFrom:''});
 let D=null;function dget(){if(!D){try{D=JSON.parse(sessionStorage.getItem(DK))}catch(e){}if(!D)D=newDraft()}return D}function dsave(){sessionStorage.setItem(DK,JSON.stringify(D))}
 window.dset=(k,v)=>{dget()[k]=v;dsave()};window.__draft=()=>dget();
-function roomSt(r){const cs=S.contracts.filter(c=>!c.term&&c.rooms.some(x=>x.r==r&&!x.out));if(!cs.length)return '无租赁';return [...new Set(cs.map(c=>K.leaseSt(S,c,c.rooms.find(x=>x.r==r),T)))].join('/')}window.roomSt=roomSt;
+function roomSt(r){const cs=S.contracts.filter(c=>!c.term&&!c.voided&&!c.removed&&c.rooms.some(x=>x.r==r&&!x.out));if(!cs.length)return '无租赁';return [...new Set(cs.map(c=>K.leaseSt(S,c,c.rooms.find(x=>x.r==r),T)))].join('/')}window.roomSt=roomSt;
 const inp=(k,ph,extra)=>`<input class="input" id="f-${k}" value="${esc(dget()[k])}" placeholder="${ph||''}" oninput="dset('${k}',this.value)" ${extra||''}>`;
 const sub=(id,label,val,to)=>`<a class="card entry" id="${id}" href="#${to}"><span>${label}</span><span class="helper">${val} ›</span></a>`;
 P.register=(q)=>{if(q.new){D=newDraft();if(q.r)D.rooms.push({r:q.r});dsave();history.replaceState(null,'','#register');}const d=dget();
@@ -184,25 +184,65 @@ P['reg-preview']=()=>{const f=regForm();const e=K.validateReg(S,f);if(e.length)r
  <div class="row"><span>支付日</span><b><input class="input pv-due" style="width:150px;height:32px" type="date" value="${b.due}" oninput="pvSet(${bi},-1,this.value)"></b></div>${row('<b>账单金额</b>','<b id="pt'+bi+'">'+money(K.sum(b.items.map(i=>+i.amount||0)))+'</b>')}<label class="chk"><input type="checkbox" class="pv-paid" ${b.paid?'checked':''} onchange="pvPaid(${bi},this.checked)"> 已线下收款</label></div>`).join('')}<div class="err-t" id="rerr"></div></div>
  <div class="actionbar"><button class="btn sec2" onclick="history.back()">返回修改</button><button class="btn" id="do-register" onclick="doRegister()">确认登记</button></div>`+tabbar('home')};
 window.doRegister=()=>{try{const f=regForm();f.bills=pvBills(f).map(b=>({...b,items:b.items.map(i=>({...i,amount:K.r2(+i.amount)}))}));const at=T+' '+new Date().toTimeString().slice(0,5);const c=f.resignFrom?K.resignApply(S,f.resignFrom,f,at):K.register(S,f,at);save();sessionStorage.removeItem(DK);D=null;const ev=S.events.filter(e=>e.cid==c.id).pop();go('result',{ev:ev.id})}catch(e){document.getElementById('rerr').textContent=e.message}};
-// ----- 退租（整份合同结算）-----
-let CO=null;
-P.checkout=(q)=>{const c=K.C(S,q.id);if(!c)return nav('退租',1)+'<div class="wrap">合同不存在</div>';if(c.term)return nav('退租',1)+'<div class="wrap">合同已终止</div>';
- if(!CO||CO.cid!=c.id)CO={cid:c.id,X:'',other:null,ded:0,dedr:''};
- let body='';
- if(CO.X){const fp=K.finalPreview(S,c.id,CO.X);if(fp.err.length)body=`<div class="err-t">${fp.err.join('；')}</div>`;else{if(CO.other==null)CO.other=fp.other;const res=K.r2(fp.received-fp.actual-(+CO.other||0)-(+CO.ded||0));
-  body=`<div class="sec"><h3>结算预览（确认后合同终止）</h3>${row('已收合计（含押金）',money(fp.cash))}${fp.refunded?row('减：已退给租客',money(-fp.refunded)):''}${row('= 已收净额',money(fp.received))}${row('实际租金（'+c.start+' 至 '+CO.X+'）',money(-fp.actual))}
-  <label class="f">其他费用<input class="input" id="co-other" type="number" value="${CO.other}" onchange="CO.other=+this.value;render()"></label><label class="f">扣款<input class="input" id="co-ded" type="number" value="${CO.ded}" onchange="CO.ded=+this.value;render()"></label><label class="f">扣款原因<input class="input" id="co-dedr" value="${esc(CO.dedr)}" onchange="CO.dedr=this.value"></label>
-  ${row('<b>结算结果</b>','<b id="co-res">'+(res>=0?'应退 ':'应收 ')+money(Math.abs(res))+'</b>')}</div>`}}
- return nav('退租',1,'checkout')+`<div class="wrap form has-ab"><div class="card">${titleOf(c)}<div class="helper">整份合同退租 · 月租 ${money(c.rent)} · ${c.rooms.map(x=>esc(K.addrOf(c,x.r))).join('、')}</div></div>
- <div class="helper">退租后全部房间一并退租，押金与其他费用在本结算中处理。</div>
- <label class="f">实际退租日 *<input class="input" id="co-X" type="date" value="${CO.X}" onchange="CO.X=this.value;CO.other=null;render()"></label>${body}<div class="err-t" id="coerr"></div></div>
- <div class="actionbar"><button class="btn" id="do-checkout" onclick="doCheckout()">确认办理</button></div>`+tabbar('home')};
-window.doCheckout=()=>{try{if(!CO||!CO.X)throw new Error('请填写实际退租日');const ev=K.finalApply(S,CO.cid,CO.X,CO.other,CO.ded,CO.dedr,'房东',T+' 12:00');save();CO=null;go('result',{ev:ev.id})}catch(e){document.getElementById('coerr').textContent=e.message}};
+// ----- 退租：弹层双路径 -----
+window.openCheckoutSheet=id=>{document.getElementById('co-sheet')?.remove();const d=document.createElement('div');d.id='co-sheet';d.className='mask open';
+ d.innerHTML=`<div class="sheet" role="dialog" aria-labelledby="co-sheet-title"><h3 id="co-sheet-title" style="text-align:center">退房操作</h3>
+ <div class="tips"><b>温馨提示</b><div>1. 退房后，不可撤销</div><div>2. 确认退房后会立刻退房，将释放房源为可租状态</div><div>3. 退房后请及时与承租人结算账务</div></div>
+ <button class="sheet-link rec" id="co-with-settle" onclick="document.getElementById('co-sheet').remove();go('checkoutSettle',{id:'${id}'})">退房，同时结账（推荐）</button>
+ <button class="sheet-link" id="co-only" onclick="document.getElementById('co-sheet').remove();go('checkoutOnly',{id:'${id}'})">先退房，后续结账</button>
+ <button class="sheet-link cancel" onclick="document.getElementById('co-sheet').remove()">取消</button></div>`;
+ d.onclick=e=>{if(e.target===d)d.remove()};document.body.append(d)};
+window.CO=null;
+P.checkoutOnly=(q)=>{const c=K.C(S,q.id);if(!c||c.term)return nav('先退租',1)+'<div class="wrap">合同不可退租</div>';
+ if(!window.CO||window.CO.cid!=c.id||window.CO.mode!='only')window.CO={cid:c.id,mode:'only',X:T,reason:'到期'};
+ return nav('先退租',1,'checkout')+`<div class="wrap form has-ab"><div class="card">${titleOf(c)}</div>
+ <div class="helper">只办理退租：立刻释放房源。不调整账单为已完成，结算请后续办理。</div>
+ <label class="f">退租原因<select class="input" id="co-reason" onchange="window.CO.reason=this.value">${['到期','提前退租','其他'].map(x=>`<option ${window.CO.reason==x?'selected':''}>${x}</option>`).join('')}</select></label>
+ <label class="f">实际退租日 *<input class="input" id="co-X" type="date" value="${window.CO.X}" onchange="window.CO.X=this.value"></label>
+ <div class="err-t" id="coerr"></div></div><div class="actionbar"><button class="btn" id="do-checkout-only" onclick="doCheckoutOnly()">确认退房</button></div>`+tabbar('home')};
+window.doCheckoutOnly=()=>{try{const ev=K.checkoutOnly(S,window.CO.cid,window.CO.X,window.CO.reason,'房东',T+' 12:00');save();window.CO=null;go('result',{ev:ev.id})}catch(e){document.getElementById('coerr').textContent=e.message}};
+P.checkoutSettle=(q)=>{const c=K.C(S,q.id);if(!c)return nav('退租结算单',1)+'<div class="wrap">合同不存在</div>';
+ if(c.term&&c.term.settled!==false)return nav('退租结算单',1)+'<div class="wrap">已结算</div>';
+ if(!window.CO||window.CO.cid!=c.id||window.CO.mode!='settle'){const X=c.term&&c.term.X||T;const pv=K.finalPreview(S,c.id,X);window.CO={cid:c.id,mode:'settle',X,reason:c.term&&c.term.reason||'到期',afterStatus:'转为空房可租',refund:pv.err.length?0:pv.refundToTenant,ded:0,dedr:'',note:'',media:0,payMethod:'生成待付账单',payAt:T+' 12:00',inviteSign:false}}
+ const pv=K.finalPreview(S,c.id,window.CO.X);if(!pv.err.length&&window.CO.refund==null)window.CO.refund=pv.refundToTenant;
+ const refund=+window.CO.refund||0,ded=+window.CO.ded||0,total=K.r2(refund-ded);
+ const totalHelper=total>=0?`（向租客支付 ¥ ${Math.abs(total).toFixed(2)}元）`:`（向租客收取 ¥ ${Math.abs(total).toFixed(2)}元）`;
+ const methods=['生成待付账单','线上付款','申请付款','线下付款'];
+ return nav('退租结算单',1,'checkout')+`<div class="wrap form has-ab">
+ <div class="sec"><h3>退租信息</h3>
+  <label class="f">退租原因<select class="input" onchange="window.CO.reason=this.value;render()">${['到期','提前退租','换房','其他'].map(x=>`<option ${window.CO.reason==x?'selected':''}>${x}</option>`).join('')}</select></label>
+  <label class="f">退租后状态<select class="input" onchange="window.CO.afterStatus=this.value">${['转为空房可租','维修中'].map(x=>`<option ${window.CO.afterStatus==x?'selected':''}>${x}</option>`).join('')}</select></label>
+  <label class="f">实际退租时间 *<input class="input" id="co-X" type="date" value="${window.CO.X}" onchange="window.CO.X=this.value;window.CO.refund=null;render()"></label>
+ </div>
+ ${pv.err.length?`<div class="err-t">${pv.err.join('；')}</div>`:`<div class="sec">
+  <div class="row"><span>应退租客金额</span><b><input class="input" id="co-refund" type="number" step="0.01" value="${refund}" style="width:120px;height:32px" onchange="window.CO.refund=+this.value;render()"></b></div>
+  <div class="row"><span>扣除租客金额</span><b><input class="input" id="co-ded" type="number" step="0.01" value="${ded}" style="width:120px;height:32px" onchange="window.CO.ded=+this.value;render()"></b></div>
+  ${row('<b>总计</b>','<b id="co-total" style="color:'+(total<0?'#b00':'inherit')+'">'+total.toFixed(2)+'</b>')}<div class="helper" id="co-total-h">${totalHelper}</div>
+  ${pv.err.length?'':`<div class="helper">参考：已收净额 ${money(pv.received)} − 实际租金 ${money(pv.actual)} − 其他费用 ${money(pv.other)} = 应退 ${money(pv.refundToTenant)}</div>`}
+ </div>`}
+ <div class="sec">
+  <a class="card entry" href="#checkoutNote"><span>退租备注</span><span class="helper">${window.CO.note?esc(window.CO.note.slice(0,12))+'…':'请输入'} ›</span></a>
+  <a class="card entry" href="#checkoutMedia"><span>退租照片/视频</span><span class="helper">${window.CO.media?window.CO.media+' 个':'未上传'} ›</span></a>
+ </div>
+ <div class="sec"><h3>付款方式</h3><div class="chips">${methods.map(m=>`<span class="sign ${window.CO.payMethod==m?'act':''}" onclick="window.CO.payMethod='${m}';render()">${m}</span>`).join('')}</div>
+  ${['线上付款','申请付款'].includes(window.CO.payMethod)?'<div class="helper">该付款方式原型仅作占位，确认后仍完成退租结算核心；待付/线下按所选处理。</div>':''}
+  <label class="f">预计支付时间<input class="input" type="datetime-local" value="${(window.CO.payAt||'').replace(' ','T').slice(0,16)}" onchange="window.CO.payAt=this.value.replace('T',' ')"></label>
+ </div>
+ <div class="err-t" id="coerr"></div></div>
+ <div class="actionbar settle-bar"><label class="chk" style="flex:1"><input type="checkbox" ${window.CO.inviteSign?'checked':''} onchange="window.CO.inviteSign=this.checked"> 邀请租客签字</label><a class="mini" href="#checkoutAgree" style="white-space:nowrap">查阅退租协议</a></div>
+ <div class="actionbar" style="bottom:56px"><div style="flex:1"><div><b>总计: ${total.toFixed(2)}</b></div><div class="helper">${totalHelper}</div></div><button class="btn" id="do-settle" style="flex:0 0 120px" onclick="doSettle()">确认退租</button></div>`+tabbar('home')};
+window.doSettle=()=>{try{const ev=K.settleApply(S,window.CO.cid,{X:window.CO.X,refund:window.CO.refund,ded:window.CO.ded,dedr:window.CO.dedr,reason:window.CO.reason,afterStatus:window.CO.afterStatus,note:window.CO.note,media:window.CO.media,payMethod:window.CO.payMethod,payAt:window.CO.payAt,inviteSign:window.CO.inviteSign},'房东',T+' 12:00');save();window.CO=null;go('result',{ev:ev.id})}catch(e){document.getElementById('coerr').textContent=e.message}};
+P.checkoutNote=()=>{if(!window.CO)return nav('退租备注',1)+'<div class="wrap">请从结算单进入</div>';return nav('退租备注',1)+`<div class="wrap form"><textarea class="input" style="height:120px" oninput="window.CO.note=this.value">${esc(window.CO.note||'')}</textarea><a class="btn" href="#checkoutSettle?id=${window.CO.cid}">完成</a></div>`};
+P.checkoutMedia=()=>{if(!window.CO)return nav('退租照片/视频',1)+'<div class="wrap">请从结算单进入</div>';return nav('退租照片/视频',1)+`<div class="wrap"><div class="helper">原型占位，不实际上传。</div><div class="helper">已添加 ${window.CO.media||0} 个</div><button class="btn sec2" onclick="window.CO.media=(window.CO.media||0)+1;render()">+ 添加（占位）</button><div style="height:8px"></div><a class="btn" href="#checkoutSettle?id=${window.CO.cid}">完成</a></div>`};
+P.checkoutAgree=()=>nav('退租协议',1)+`<div class="wrap"><div class="sec"><h3>退租协议（占位）</h3><div class="helper">正式协议文本待产品提供。确认退租即表示知悉退房不可撤销等提示。</div></div><button class="btn" onclick="history.back()">返回</button></div>`;
+// legacy #checkout → sheet/settle
+P.checkout=(q)=>{setTimeout(()=>openCheckoutSheet(q.id),0);return nav('退租',1)+`<div class="wrap"><div class="helper">请选择退房方式</div><button class="btn" onclick="openCheckoutSheet('${q.id}')">打开退房操作</button></div>`+tabbar('home')};
 P.result=(q)=>{const e=S.events.find(x=>x.id==q.ev);if(!e)return nav('办理结果',1)+'<div class="wrap">记录不存在</div>';const c=K.C(S,e.cid);
  let body='';
  if(e.type=='租客登记'){body=`<div class="sec">${row('房间',c.rooms.map(x=>esc(K.addrOf(c,x.r))).join('、'))}${row('月租金',money(c.rent))}${row('合同租期',c.start+' 至 '+c.end)}${row('承租人',esc(c.who||'待承租人实名补充')+' '+c.phone)}${row('已生成账单',K.billsOf(S,c.id).length+' 笔')}</div><div class="sec"><h3>邀请二维码</h3><div style="width:120px;height:120px;border:1px dashed #888;display:flex;align-items:center;justify-content:center" class="helper">二维码占位</div></div>`}
  else if(e.type=='换房'){const nc=S.contracts.find(x=>x.id==e.cid);body=`<div class="sec">${row('新合同',titleOf(nc))}${row('租期',nc.start+' 至 '+nc.end)}${row('月租金',money(nc.rent))}</div>${e.sid?`<a class="ref" href="#settlement?id=${e.sid}">原合同结算单 ›</a>`:''}${e.from?`<a class="ref" href="#contract?id=${e.from}">原合同 ›</a>`:''}`}
  else if(e.type=='续租'||e.type=='重签'){body=`<div class="sec">${row('新合同',titleOf(c))}${row('租期',c.start+' 至 '+c.end)}${row('月租金',money(c.rent))}${e.type=='重签'?'<div class="helper">原合同已作废，账单已关闭且不计入汇总。</div>':''}</div>${e.from?`<a class="ref" href="#contract?id=${e.from}">原合同 ›</a>`:''}`}
+ else if(e.type=='先退租'){body=`<div class="helper">房源已释放。账单未标记已完成。</div><a class="btn" id="go-settle" href="#checkoutSettle?id=${c.id}">去结算</a>`}
  else {body=`${e.sid?`<a class="ref" href="#settlement?id=${e.sid}">查看结算单 ›</a>`:''}`}
  return nav('办理结果',1,'result')+`<div class="wrap"><div class="status on"><div class="t">${e.type}办理成功</div><div class="s">${esc(e.text)}</div></div>${body}<a class="btn sec2" id="to-contract" href="#contract?id=${c.id}">${e.type=='租客登记'?'查看合同详情':'返回合同'}</a></div>`+tabbar('home')};
 // ----- 换房（仅单房） / 续租 -----
@@ -244,7 +284,6 @@ window.doBatchCollect=()=>{try{const ids=[...document.querySelectorAll('.batch-b
 window.moveIn=(cid,r)=>{const d=prompt('实际入住时间（YYYY-MM-DD）',T);if(!d)return;try{K.moveIn(S,cid,r,d);save();render()}catch(e){alert(e.message)}};
 window.occAdd=(cid,r)=>{const p=prompt('入住人手机号');if(!p)return;try{K.addOcc(S,cid,r,p.trim());save();render()}catch(e){alert(e.message)}};
 window.occAgree=(cid,r,i)=>{K.agreeOcc(S,cid,r,i);save();render()};window.occDel=(cid,r,i)=>{if(!confirm('删除该入住人？'))return;K.delOcc(S,cid,r,i);save();render()};
-Object.defineProperty(window,'CO',{get:()=>CO});
 function render(){const{p,q}=route();document.body.classList.remove('bill-editor');document.body.innerHTML=(P[p]||P.home)(q,p);window.scrollTo(0,0)}window.render=render;
 window.addEventListener('hashchange',render);load();render();window.__state=()=>S;
 })();

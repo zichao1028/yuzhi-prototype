@@ -2,7 +2,7 @@
 const K=require('./core.js');const base=process.argv[2]||'http://localhost:8080/';let pass=0,fail=0;const ok=(c,m)=>{if(c)pass++;else{fail++;console.log('FAIL',m)}};
 // ---- ① seed ----
 const s=K.seed();
-ok(s.v===4,'state v4');
+ok(s.v===5,'state v5');
 for(const c of s.contracts){
  ok(typeof c.rent==='number'&&c.rent>0,'contract rent '+c.who);
  ok(!JSON.stringify(c).match(/H\d{3}/),'no H-code');
@@ -84,16 +84,24 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await G('bill?id='+q4.id);await typ('#pamt','5000');await clk('#do-collect');ok((await pg.$eval('#bstatus',e=>e.textContent))=='部分收款','partial collect');
  await clk('#edit-items');await pg.waitForSelector('#items');await pg.evaluate(()=>document.getElementById('items').insertAdjacentHTML('beforeend',itemRowHtml({name:'维修费',amount:50})));await clk('#save-items');
  S=await st();ok(S.bills.find(b=>b.id==q4.id).items.some(i=>i.name=='维修费'),'item added');
- // full checkout 李四
+// checkout dual path 李四
  const ls=S.contracts.find(c=>c.who=='李四');
  await G('contract?id='+ls.id);ok(!!(await pg.$('#btn-swap'))&&!!(await pg.$('#btn-resign'))&&!!(await pg.$('#btn-more')),'single has swap/resign/more');
- await clk('#btn-checkout');await pg.waitForSelector('#co-X');
- ok(!(await pg.$('#co-picker'))&&!(await txt()).includes('请选择退租房间'),'no room picker');
- await typ('#co-X','2026-10-17');await typ('#co-ded','200');await typ('#co-dedr','清洁');await clk('#do-checkout');await pg.waitForSelector('.status');
- S=await st();const se=S.settlements[S.settlements.length-1];ok(S.contracts.find(c=>c.id==ls.id).term&&se.result==1950,'李四 settlement 1950 got '+se.result);
- // full checkout 张三
- await G('contract?id='+z.id);await clk('#btn-checkout');await typ('#co-X','2026-10-17');await clk('#do-checkout');await pg.waitForSelector('.status');
- S=await st();ok(S.contracts.find(c=>c.id==z.id).term,'张三 terminated');
+ ok(!(await pg.$$eval('.sec .row span',es=>es.map(e=>e.textContent.trim()))).includes('房间'),'no 房间 field in detail');
+ await clk('#btn-checkout');await pg.waitForSelector('#co-sheet');
+ ok((await txt()).includes('退房操作')&&(await txt()).includes('同时结账'),'checkout sheet');
+ await clk('#co-only');await pg.waitForSelector('#do-checkout-only');await typ('#co-X','2026-10-17');await clk('#do-checkout-only');await pg.waitForSelector('.status');
+ ok((await txt()).includes('先退租')&&!!(await pg.$('#go-settle')),'checkout-only result');
+ S=await st();const ls2=S.contracts.find(c=>c.id==ls.id);ok(ls2.term&&ls2.term.settled===false&&K.billsOf(S,ls.id).some(b=>!b.done),'checkout-only keeps bills open');
+ ok(!K.roomBusy(S,'501'),'room released');
+ await clk('#go-settle');await pg.waitForSelector('#do-settle');
+ ok((await txt()).includes('退租结算单')&&(await txt()).includes('应退租客金额')&&!(await txt()).includes('收款人'),'settle form no payee');
+ await typ('#co-ded','200');await clk('#do-settle');await pg.waitForSelector('.status');
+ S=await st();const se=S.settlements[S.settlements.length-1];ok(S.contracts.find(c=>c.id==ls.id).term.settled&&se.result==1950,'李四 settle 1950 got '+se.result);
+ // 张三：并结算
+ await G('contract?id='+z.id);await clk('#btn-checkout');await pg.waitForSelector('#co-with-settle');await clk('#co-with-settle');await pg.waitForSelector('#do-settle');
+ await typ('#co-X','2026-10-17');await clk('#do-settle');await pg.waitForSelector('.status');
+ S=await st();ok(S.contracts.find(c=>c.id==z.id).term&&S.contracts.find(c=>c.id==z.id).term.settled,'张三 settled');
  // swap on 王五? multi - disabled. Use 赵六 single expired for renew; use another single for swap - 赵六 is expired single.
  // Seed another: after 李四 gone, use 赵六 for renew
  const zl=S.contracts.find(c=>c.who=='赵六');
