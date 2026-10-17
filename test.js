@@ -156,11 +156,21 @@ const vm=require('vm'),fs=require('fs');
 const location={hash:'#rooms'},document={body:{classList:{remove(){}},innerHTML:''},getElementById(){return null}},storage={};
 const ctx={CORE:require(process.cwd()+'/core.js'),location,document,localStorage:{getItem:k=>storage[k],setItem:(k,v)=>storage[k]=v},URLSearchParams,console};ctx.window=ctx;ctx.addEventListener=()=>{};ctx.scrollTo=()=>{};vm.createContext(ctx);vm.runInContext(fs.readFileSync('app.js','utf8'),ctx);
 const check=(v,m)=>ok(v,'VM '+m),html=()=>document.body.innerHTML;
-for(const [page,keys] of [['rooms',['bld']],['bills',['bld','typ','more']],['bills?side=out',['bld','more']],['contracts',['t']],['workOrders',['status','type']],['ledger',['cid']]]){
+for(const [page,keys] of [['rooms',['bld']],['bills',['dept','owner','typ','more']],['bills?side=out',['dept','owner','more']],['contracts',['t']],['workOrders',['status','type']],['ledger',['cid']]]){
  location.hash='#'+page;ctx.render();
  for(const key of keys){ctx.openListFilter(key);check((html().match(/<section class="filter-dd-sheet"/g)||[]).length===1,'single sheet');check(html().includes('重置')&&html().includes('确认'),'footer');if(key!=='more'){const value=html().match(/data-value="([^"]*)"/)[1];ctx.setListFilter(key,value);check(!location.hash.includes(key+'='),'draft');ctx.closeListFilter();ctx.openListFilter(key);check(!html().includes('aria-pressed="true"'),'discard');ctx.setListFilter(key,value);ctx.confirmListFilter();ctx.render();check(new URLSearchParams(location.hash.split('?')[1]).get(key)===value,'apply');ctx.openListFilter(key);ctx.resetListFilter();ctx.confirmListFilter();ctx.render();check(!new URLSearchParams(location.hash.split('?')[1]).get(key),'reset')}else{ctx.listFilterInput('ov',{type:'checkbox',checked:true});ctx.listFilterInput('dueFrom',{type:'date',value:'2026-01-01'});ctx.confirmListFilter();ctx.render();check(location.hash.includes('ov=1'),'overdue confirm');ctx.openListFilter(key);ctx.resetListFilter();ctx.confirmListFilter();ctx.render();check(!new URLSearchParams(location.hash.split('?')[1]).get('ov'),'reset overdue')}
  }
 }
+location.hash='#bills';ctx.render();
+check(!html().includes('href="#ledger"'),'bills no ledger entry');
+check([...html().matchAll(/<span class="(?:act)?" onclick="go\('bills'.*?>(.*?)<\/span>/g)].map(m=>m[1]).join('|')==='待收款|已完成|全部','receipt status order');
+check(['部门','归属','账单类型','筛选'].every(x=>html().includes(x)),'receipt filter labels');
+check(html().includes('bill-room')&&!html().includes('共1间房'),'bill property row');
+check(html().includes('逾期')&&html().includes('btn-bills-batch'),'overdue and batch FAB');
+check(html().includes('bill-date-row'),'payment date range');
+ctx.openListFilter('more');check(html().includes('href="#bills?side=void"'),'void entry in filter');
+location.hash='#home';ctx.render();check(html().includes('href="#ledger"'),'home ledger entry');
+location.hash='#ledger';ctx.render();check(html().includes('href="#home" class="act"'),'ledger home tab');
 location.hash='#rooms';ctx.render();ctx.openListFilter('bld');
 check(Object.keys(ctx.CORE.getBuildings()).every(b=>html().includes('data-value="'+b+'"')),'all buildings listed');
 const selectedBuilding=Object.keys(ctx.CORE.getBuildings())[0];ctx.setListFilter('bld',selectedBuilding);ctx.confirmListFilter();ctx.render();
@@ -177,9 +187,9 @@ console.log('core + VM checks',pass,'pass',fail,'fail');
  const clk=async sel=>{await pg.$eval(sel,e=>e.click());await new Promise(r=>setTimeout(r,150))};const typ=async(sel,v)=>{await pg.$eval(sel,(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))},v);await new Promise(r=>setTimeout(r,60))};
  await pg.goto(base);await pg.evaluate(()=>{localStorage.clear();sessionStorage.clear()});await G('home');await clk('#reset');
 
- await G('bills?side=out');ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='全部|待付款|付款中|已完成','payment exact tabs');ok((await pg.$$eval('.seg b',es=>es.map(e=>e.textContent))).join('|')==='收款账单|付款账单|作废账单','three top tabs');
+ await G('bills?side=out');ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='待付款|付款中|已完成|全部','payment exact tabs');ok((await pg.$$eval('.seg b',es=>es.map(e=>e.textContent))).join('|')==='收款账单|付款账单','two top tabs');
  await pg.evaluate(()=>{const s=window.__state();s.payables.push({id:'matrix-progress',cid:s.contracts[0].id,amount:100,paid:20,status:'部分付款',due:'2026-10-10',reason:'矩阵测试'});render()});
- await G('bills?side=out&t='+encodeURIComponent('付款中'));ok((await pg.$$('.bc')).length===1&&(await pg.$eval('.bc .tag',e=>e.textContent))==='付款中','payment in progress card and filter');
+ await G('bills?side=out&t='+encodeURIComponent('付款中'));ok((await pg.$$('.bc')).length===1&&(await pg.$eval('.bc .completed',e=>e.textContent))==='付款中','payment in progress card and filter');
  await G('pay?id=matrix-progress');await clk('#do-pay');ok((await pg.$eval('#pstatus',e=>e.textContent))==='已完成','progress payment completes');
  await G('bills?side=out&t='+encodeURIComponent('已完成'));ok((await txt()).includes('完成日期 2026-10-17'),'payment completion date');
  await pg.evaluate(()=>{const s=window.__state();s.payables=s.payables.filter(p=>p.id!=='matrix-progress');s.ledger=s.ledger.filter(l=>l.pid!=='matrix-progress');localStorage.setItem('yuzhi-proto-state-v5',JSON.stringify(s))});
@@ -216,13 +226,13 @@ console.log('core + VM checks',pass,'pass',fail,'fail');
  await G('register?new=1');await typ('#f-q','304');await pg.click('.sr[data-r="304"]');await clk('.sign:nth-child(1)');await typ('#f-phone','13811114444');await typ('#f-start','2026-12-01');await typ('#f-end','2027-03-31');await typ('#f-rent','900');
  await clk('#to-preview');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('租期冲突'),'overlap blocked');
  // bills list style + contract tab same billTitle
- await G('bills?t=全部');ok((await txt()).includes('总金额（元）')&&!(await txt()).includes('批量'),'bills summary no batch');
- ok((await txt()).includes('已收（元）')&&(await txt()).includes('作废账单')&&!!(await pg.$('#btn-bills-more')),'bills tabs mirror yuxiaoer');
+ await G('bills?t=全部');ok((await txt()).includes('总金额（元）')&&!!(await pg.$('#btn-bills-batch')),'bills summary and batch');
+ ok((await txt()).includes('已收（元）')&&!(await pg.$('a[href="#ledger"]'))&&!!(await pg.$('#btn-bills-more')),'bills tabs mirror yuxiaoer');
  await clk('#btn-bills-more');
  ok(await pg.$eval('.filter-dd-sheet',e=>e.innerText.includes('仅逾期')),'bills overdue option in filter sheet');
  await clk('.filter-dd-mask');
- await G('bills?t=已完成');ok((await pg.$$eval('.bc .tag',es=>es.every(e=>e.textContent==='已完成'))),'completed filter only completed');
- ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='全部|待收款|已完成','receipt exact tabs');
+ await G('bills?t=已完成');ok((await pg.$$eval('.bc .completed',es=>es.every(e=>e.textContent.startsWith('完成日期')))),'completed filter only completed');
+ ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='待收款|已完成|全部','receipt exact tabs');
  await G('bills?t=全部');ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
  await G('rooms');ok(!!(await pg.$('#btn-room-filter'))||(await txt()).includes('筛选'),'room filter entry');
  await G('rooms?panel=1');ok(await pg.$eval('#room-filter-sheet',e=>e.textContent.includes('定价下限')&&e.textContent.includes('朝向')&&!e.textContent.includes('业务状态')),'room more filter fields');
@@ -305,7 +315,7 @@ console.log('core + VM checks',pass,'pass',fail,'fail');
  S=await st();ok(S.buildings['测试独栋A']&&S.buildings['测试独栋A'].rooms.some(x=>x.r==='T0101'),'building added');
 
  // Unified dropdown drafts, reset, confirmation, and mutual exclusion.
- for(const [path,keys] of [['rooms',['bld']],['bills',['bld','typ','more']],['bills?side=out',['bld','more']],['contracts',['t']],['workOrders',['status','type']],['ledger',['cid']]]){
+ for(const [path,keys] of [['rooms',['bld']],['bills',['dept','owner','typ','more']],['bills?side=out',['dept','owner','more']],['contracts',['t']],['workOrders',['status','type']],['ledger',['cid']]]){
   await G(path);const page=path.split('?')[0];
   ok(!(await pg.$('select:not([disabled])')),'no native list filter '+path);
   for(const key of keys){
