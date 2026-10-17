@@ -78,6 +78,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok((await txt()).includes('待处理')&&(await txt()).includes('已完成')&&(await txt()).includes('合计'),'pending/done sections');
  ok(!!(await pg.$('#btn-add-bill'))&&!!(await pg.$('#btn-batch-collect'))&&!!(await pg.$('#btn-reset-bills')),'bill tab actions');
  ok(!(await txt()).includes('办理记录'),'no 办理记录 tab');
+ await G('contract?id='+z.id+'&tab=物业交割');ok((await txt()).includes('第一版不实现'),'物业交割 stub');
  await G('contract?id='+z.id+'&tab=合同');ok(!!(await pg.$('#btn-checkout'))&&!(await pg.$('#btn-swap'))&&!!(await pg.$('#btn-resign')),'multi: checkout+resign, no swap');
  // collect + edit
  const q4=S.bills.find(b=>b.cid==z.id&&b.n==4);
@@ -96,8 +97,14 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok(!K.roomBusy(S,'501'),'room released');
  await clk('#go-settle');await pg.waitForSelector('#do-settle');
  ok((await txt()).includes('退租结算单')&&(await txt()).includes('应退租客金额')&&!(await txt()).includes('收款人'),'settle form no payee');
- await typ('#co-ded','200');await clk('#do-settle');await pg.waitForSelector('.status');
+ ok(!!(await pg.$('#go-refund-items'))&&!!(await pg.$('#go-ded-items'))&&!(await pg.$('#co-refund')),'refund/ded are jumps not inputs');
+ await clk('#go-ded-items');await pg.waitForSelector('#add-ded-item');
+ await clk('#add-ded-item');await pg.waitForSelector('#ded-table .iamt');
+ await pg.$$eval('#ded-table .iamt',es=>{const e=es[es.length-1];e.value='200';e.dispatchEvent(new Event('change'))});
+ await clk('#ded-done');await pg.waitForSelector('#do-settle');
+ await clk('#do-settle');await pg.waitForSelector('.status');
  S=await st();const se=S.settlements[S.settlements.length-1];ok(S.contracts.find(c=>c.id==ls.id).term.settled&&se.result==1950,'李四 settle 1950 got '+se.result);
+ ok((se.dedItems||[]).some(i=>i.amount==200),'ded item persisted');
  // 张三：并结算
  await G('contract?id='+z.id);await clk('#btn-checkout');await pg.waitForSelector('#co-with-settle');await clk('#co-with-settle');await pg.waitForSelector('#do-settle');
  await typ('#co-X','2026-10-17');await clk('#do-settle');await pg.waitForSelector('.status');
@@ -116,6 +123,12 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await pg.waitForSelector('.status');S=await st();
  ok(S.contracts.find(c=>c.id==sc.id).term,'swap old terminated');
  ok(S.contracts.some(c=>c.rooms.length==1&&c.rooms[0].r=='B301'&&c.who=='周十'&&!c.term),'swap new exists');
+
+
+ // building add
+ await G('rooms');ok(!!(await pg.$('#btn-add-building')),'rooms add building');
+ await G('buildingAdd');await typ('#bld-name','测试独栋A');await typ('#bld-rooms','T101,T102');await clk('#do-add-building');await pg.waitForSelector('#btn-add-building');
+ S=await st();ok(S.buildings['测试独栋A']&&S.buildings['测试独栋A'].includes('T101'),'building added');
 
  // F resign: 王五重签
  const ww=S.contracts.find(c=>c.who=='王五'&&!c.voided);
