@@ -2,7 +2,7 @@
 const K=require('./core.js');const base=process.argv[2]||'http://localhost:8080/';let pass=0,fail=0;const ok=(c,m)=>{if(c)pass++;else{fail++;console.log('FAIL',m)}};
 // ---- ① seed ----
 const s=K.seed();
-ok(s.v===3,'state v3');
+ok(s.v===4,'state v4');
 for(const c of s.contracts){
  ok(typeof c.rent==='number'&&c.rent>0,'contract rent '+c.who);
  ok(!JSON.stringify(c).match(/H\d{3}/),'no H-code');
@@ -73,9 +73,12 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
  const z=S.contracts.find(c=>c.who=='张三');
  await G('contract?id='+z.id+'&tab=账单');
- ok((await txt()).includes('租金·')&&(await txt()).includes('张三')&&!(await pg.$eval('.bc .bt',e=>e.textContent)).includes('中山南路'),'contract bills tab same title style');
+ const cbt=await pg.$eval('.bc .bt',e=>e.textContent);
+ ok(cbt.includes('租金·')&&!cbt.includes('张三')&&!cbt.includes('中山南路'),'contract bill title no name/address');
+ ok((await txt()).includes('待处理')&&(await txt()).includes('已完成')&&(await txt()).includes('合计'),'pending/done sections');
+ ok(!!(await pg.$('#btn-add-bill'))&&!!(await pg.$('#btn-batch-collect'))&&!!(await pg.$('#btn-reset-bills')),'bill tab actions');
  ok(!(await txt()).includes('办理记录'),'no 办理记录 tab');
- ok((await pg.$('#btn-checkout'))&&(await pg.$('button[disabled]')),'multi: checkout yes, swap disabled');
+ await G('contract?id='+z.id+'&tab=合同');ok(!!(await pg.$('#btn-checkout'))&&!(await pg.$('#btn-swap'))&&!!(await pg.$('#btn-resign')),'multi: checkout+resign, no swap');
  // collect + edit
  const q4=S.bills.find(b=>b.cid==z.id&&b.n==4);
  await G('bill?id='+q4.id);await typ('#pamt','5000');await clk('#do-collect');ok((await pg.$eval('#bstatus',e=>e.textContent))=='部分收款','partial collect');
@@ -83,7 +86,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  S=await st();ok(S.bills.find(b=>b.id==q4.id).items.some(i=>i.name=='维修费'),'item added');
  // full checkout 李四
  const ls=S.contracts.find(c=>c.who=='李四');
- await G('contract?id='+ls.id);ok(!!(await pg.$('#btn-swap')),'single has swap');
+ await G('contract?id='+ls.id);ok(!!(await pg.$('#btn-swap'))&&!!(await pg.$('#btn-resign'))&&!!(await pg.$('#btn-more')),'single has swap/resign/more');
  await clk('#btn-checkout');await pg.waitForSelector('#co-X');
  ok(!(await pg.$('#co-picker'))&&!(await txt()).includes('请选择退租房间'),'no room picker');
  await typ('#co-X','2026-10-17');await typ('#co-ded','200');await typ('#co-dedr','清洁');await clk('#do-checkout');await pg.waitForSelector('.status');
@@ -105,6 +108,14 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await pg.waitForSelector('.status');S=await st();
  ok(S.contracts.find(c=>c.id==sc.id).term,'swap old terminated');
  ok(S.contracts.some(c=>c.rooms.length==1&&c.rooms[0].r=='B301'&&c.who=='周十'&&!c.term),'swap new exists');
+
+ // F resign: 王五重签
+ const ww=S.contracts.find(c=>c.who=='王五'&&!c.voided);
+ await G('contract?id='+ww.id);await clk('#btn-resign');await pg.waitForSelector('#f-rent');
+ ok((await pg.$eval('#f-rent',e=>e.value))=='2200'&&(await txt()).includes('重签'),'resign prefills');
+ await typ('#f-rent','2300');await clk('#to-preview');await pg.waitForSelector('#do-register');await clk('#do-register');await pg.waitForSelector('#to-contract');
+ S=await st();const oldW=S.contracts.find(c=>c.id==ww.id);const neu=S.contracts.find(c=>c.who=='王五'&&c.source&&c.source.type=='重签');
+ ok(oldW.voided&&neu&&neu.rent==2300&&K.billsOf(S,oldW.id).every(b=>b.done&&b.excluded),'resign voids old + excludes bills');
  // reset
  await G('me');await clk('#reset');S=await st();ok(S.contracts.length==6&&S.settlements.length==1,'reset');
  for(const h of ['home','contracts','bills','bills?side=out','rooms','room?r=301','settlement?id='+S.settlements[0].id]){await G(h);ok((await txt()).length>20,'render '+h)}

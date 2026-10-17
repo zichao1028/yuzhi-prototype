@@ -1,6 +1,6 @@
 // 有状态原型：状态保存在 localStorage，首次由 CORE.seed() 生成。所有页面均由状态渲染。
-(function(){const K=window.CORE,KEY='yuzhi-proto-state-v3';
-let S;function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||S.v!==3){S=K.seed();save()}}
+(function(){const K=window.CORE,KEY='yuzhi-proto-state-v4';
+let S;function load(){try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}if(!S||S.v!==4){S=K.seed();save()}}
 function save(){S.bills.forEach(b=>b.total=K.billTotal(b));localStorage.setItem(KEY,JSON.stringify(S))}
 window.resetDemo=function(){if(!confirm('重置后，所有操作将被清除并恢复示例数据，确定？'))return;S=K.seed();save();go('home')};
 const T=K.TODAY,esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -8,9 +8,11 @@ const money=x=>'¥'+(+x).toFixed(2);
 function go(p,q){location.hash='#'+p+(q?'?'+new URLSearchParams(q):'')}window.go=go;
 function route(){const h=location.hash.slice(1)||'home';const[p,qs]=h.split('?');return{p,q:Object.fromEntries(new URLSearchParams(qs||''))}}
 const titleOf=c=>`<span class="ttl"><span class="addr">${esc(K.titleText(c))}</span><span class="n">共${c.rooms.length}间房</span></span>`;
-function billTitle(b,c){const who=c.who||'待承租人实名补充';return b.k=='dep'?`押金·${who}`:b.k=='settle'?`结算应收·${who}`:`租金·${b.n}期·${who}`}
+function billTitle(b,c){const who=c.who||'待承租人实名补充';return b.k=='dep'?`押金·${who}`:b.k=='settle'?`结算应收·${who}`:b.k=='custom'?`${b.items[0]?b.items[0].name:'费用'}·${who}`:`租金·${b.n}期·${who}`}
+function contractBillTitle(b){if(b.k=='dep')return '押金';if(b.k=='settle')return '结算应收';if(b.k=='custom')return (b.items[0]&&b.items[0].name)||'费用';return `租金·${b.n}期`}
 const label=b=>b.k=='dep'?'押金':b.k=='settle'?'结算应收':`租金 第${b.n}期`;
 const period=b=>b.s?`${b.s} 至 ${b.e}`:'—';
+function dueLabel(b){const od=K.odays(b,T);if(od)return `逾期${od}天`;if(['待收','部分收款'].includes(K.billStatus(b))&&b.due>T){const n=K.days(T,b.due);return n+`天后`}return ''}
 function nav(t,back,spec){return `<div class="nav">${back?`<a class="back" href="javascript:history.back()">‹ 返回</a>`:''}${esc(t)}<a class="speclink" href="spec.html${spec?'#'+spec:''}">功能说明</a></div>`}
 const ICON={home:'<path d="M4 11.5 13 4l9 7.5"/><path d="M6.5 10v11h13V10"/>',rooms:'<path d="M6 21V4h8v17"/><path d="M14 9h6v12"/>',bills:'<rect x="5" y="4" width="16" height="18"/><path d="M9 9h8M9 13h8M9 17h5"/>',me:'<circle cx="13" cy="9" r="4"/><path d="M5 22c1-5 4-7 8-7s7 2 8 7"/>'};
 function tabbar(a){return `<div class="tabbar">${[['home','首页'],['rooms','房源'],['bills','账单'],['me','我的']].map(([k,n])=>`<a href="#${k}" class="${a==k?'act':''}"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="2">${ICON[k]}</svg>${n}</a>`).join('')}</div>`}
@@ -26,7 +28,7 @@ window.copyPhone=async function(event,phone){
 };
 // ---------------- pages ----------------
 const P={};
-P.home=()=>{const cs=S.contracts,cnt=s=>cs.filter(c=>K.cStatus(c,T)==s).length;const due=S.bills.filter(b=>['待收','部分收款'].includes(K.billStatus(b))&&b.due<=T);
+P.home=()=>{const cs=S.contracts.filter(c=>!c.removed&&!c.voided),cnt=s=>cs.filter(c=>K.cStatus(c,T)==s).length;const due=S.bills.filter(b=>['待收','部分收款'].includes(K.billStatus(b))&&b.due<=T);
  return nav('首页','', 'home')+`<div class="wrap"><div class="h1">寓智云控</div>
  <a class="btn" id="go-register" href="#register?new=1">租客登记</a><div style="height:10px"></div>
  <a class="card entry" href="#contracts"><span><b>合同管理</b><div class="helper">${cnt('生效中')} 份生效中 · ${cnt('已到期')} 份已到期 · ${cnt('已终止')} 份已终止</div></span><span>›</span></a>
@@ -35,26 +37,62 @@ P.home=()=>{const cs=S.contracts,cnt=s=>cs.filter(c=>K.cStatus(c,T)==s).length;c
  <a class="card entry" href="spec.html"><span><b>功能说明（PRD）</b><div class="helper">流程、计算规则与示例</div></span><span>›</span></a>
  <button class="btn sec2" id="reset" onclick="resetDemo()">重置示例数据</button><div class="helper">数据保存在本浏览器（localStorage），刷新后保留。示例“今天”固定为 ${T}。</div></div>`+tabbar('home')};
 P.me=()=>nav('我的','','me')+`<div class="wrap"><div class="sec">${row('办理人','房东（示例）')}${row('示例今天',T)}</div><button class="btn sec2" id="reset" onclick="resetDemo()">重置示例数据</button></div>`+tabbar('me');
-P.contracts=(q)=>{const tabs=['全部','生效中','已到期','已终止'],t=q.t||'全部';const list=S.contracts.filter(c=>t=='全部'||K.cStatus(c,T)==t).slice().reverse();
+P.contracts=(q)=>{const tabs=['全部','生效中','已到期','已终止'],t=q.t||'全部';const list=S.contracts.filter(c=>!c.removed&&!c.voided&&(t=='全部'||K.cStatus(c,T)==t)).slice().reverse();
  return nav('合同管理',1,'contracts')+`<div class="wrap"><div class="tabs">${tabs.map(x=>`<span class="${x==t?'act':''}" onclick="go('contracts',{t:'${x}'})">${x}</span>`).join('')}</div>
  ${list.map(c=>`<a class="card cc" href="#contract?id=${c.id}" data-cid="${c.id}"><div class="l1">${titleOf(c)}</div><div class="l2"><span>${esc(c.who||'待承租人实名补充')} ${c.phone}</span><span class="tag ${K.cStatus(c,T)=='生效中'?'on':''}">${K.cStatus(c,T)}</span></div><div class="l2"><span>${c.start} 至 ${c.end}</span><span>月租 ${money(c.rent)}</span></div></a>`).join('')||'<div class="helper">暂无合同</div>'}</div>`+tabbar('home')};
-P.contract=(q)=>{const c=K.C(S,q.id);if(!c)return nav('合同',1)+'<div class="wrap">合同不存在</div>';const st=K.cStatus(c,T),_tabs=['合同','账单','承租人','入住人'],tab=_tabs.includes(q.tab)?q.tab:'合同';const bl=K.billsOf(S,c.id);
- const act=K.activeRooms(c);
- let body='';
- if(tab=='合同'){body=`<div class="sec"><h3>合同详情</h3>${row('合同期间',c.start+' 至 '+c.end)}${row('月租金',money(c.rent))}${row('房间',c.rooms.map(x=>esc(K.addrOf(c,x.r))+(x.out?'（已退租 '+x.out+'）':'')).join('、'))}${row('押金',money(c.dep))}${row('付款方式',K.payT(c))}${row('支付时间',K.ruleT(c.payRule))}${(c.fees||[]).map(f=>row(esc(f.name),`${money(f.amount)}${f.mode=='随租金付'?'/月 · 随租金付':' · 一次付清'}`)).join('')||row('其他费用','无')}${row('签约方式',c.sign)}</div>
- <div class="sec"><h3>其他信息</h3>${row('办理人',esc(c.op))}${row('登记日期',c.entry)}${row('合同扫描件',c.scans?c.scans+' 个附件':'—')}${row('补充条款',esc(c.terms)||'—')}${row('合同备注',esc(c.note)||'—')}${c.emergency?row('紧急联系人',`${esc(c.emergency.name)}（${esc(c.emergency.rel)}）${c.emergency.phone}`):''}</div>
- ${c.term?`<div class="sec"><h3>终止信息</h3>${row('实际退租日',c.term.X)}${row('办理人',esc(c.term.by))}<a class="ref" href="#settlement?id=${c.term.sid}">查看结算单 ›</a></div>`:st=='已到期'?`<div class="sec"><h3>到期信息</h3>${row('到期日',c.end)}<div class="helper">已到期未退租，请办理退租或续租。</div></div>`:''}`}
- if(tab=='账单'){body=bl.map(b=>billCard(b,c)).join('')+S.payables.filter(p=>p.cid==c.id).map(p=>payCard(p,c)).join('')}
- if(tab=='承租人'){body=`<div class="sec"><h3>承租人</h3>${row('姓名',esc(c.who)||'待承租人实名补充')}${row('手机号',c.phone)}${row('证件类型',esc(c.idType)||'—')}${row('证件照',c.idPhotos?c.idPhotos+' 张':'—')}${row('证件号码',c.idNo?c.idNo.slice(0,4)+'**********'+c.idNo.slice(-4):'—')}</div>`}
- if(tab=='入住人'){body=c.rooms.map(x=>`<div class="sec"><h3>${esc(K.addrOf(c,x.r))} · ${c.term?'本合同入住期间 '+(x.in?x.in:'未记录实际入住时间')+' 至 '+x.out:K.leaseSt(S,c,x,T)+(x.in?' · 实际入住时间 '+x.in:'')}</h3>
-  ${(c.occupants[x.r]||[]).map((o,i)=>`<div class="row"><span>${o.phone}${o.self?' <span class="tag">本人</span>':''} <span class="helper">${o.how}</span></span><b><span class="tag ${o.st=='已生效'?'ok':'warn'}">${o.st}</span> ${!c.term&&!x.out?`${o.st=='待同意'?`<button class="mini" onclick="occAgree('${c.id}','${x.r}',${i})">同意</button>`:''}<button class="mini" onclick="occDel('${c.id}','${x.r}',${i})">删除</button>`:''}</b></div>`).join('')||'<div class="helper">暂无入住人</div>'}
-  ${!c.term&&!x.out?`<div class="btns">${!x.in?`<button class="mini mvin" onclick="moveIn('${c.id}','${x.r}')">记录实际入住时间</button>`:''}<button class="mini" onclick="occAdd('${c.id}','${x.r}')">手机号添加</button><button class="mini" onclick="alert('展示不记名二维码：入住人扫码申请后出现在列表（待同意）。')">二维码添加</button></div>`:''}</div>`).join('')}
- const canOut=!c.term;
+P.contract=(q)=>{const c=K.C(S,q.id);if(!c||c.removed)return nav('合同',1)+'<div class="wrap">合同不存在</div>';const st=K.cStatus(c,T),_tabs=['合同','账单','承租人','入住人'],tab=_tabs.includes(q.tab)?q.tab:'合同';const bl=K.billsOf(S,c.id);
+ const canAct=!c.term&&!c.voided;
+ let body='',bar='';
+ if(tab=='合同'){
+  body=`${canAct?`<button class="btn sec2" id="invite-bind" onclick="go('contract',{id:'${c.id}',tab:'入住人'})">邀请绑定</button><div style="height:8px"></div>`:''}
+  <div class="sec"><h3>合同详情</h3>
+   ${row('合同期间',c.start+' 至 '+c.end)}
+   ${row('月租金（租金单价）',money(c.rent)+'/月')}
+   ${row('押金',money(c.dep))}
+   ${row('付款方式',K.payT(c))}
+   ${row('支付时间',K.ruleT(c.payRule))}
+   ${row('签约方式',c.sign)}
+   ${row('房间',c.rooms.map(x=>esc(K.addrOf(c,x.r))+(x.out?'（已退租 '+x.out+'）':' · '+K.leaseSt(S,c,x,T))).join('<br>'))}
+   ${(c.fees||[]).map(f=>row(esc(f.name),`${money(f.amount)}${f.mode=='随租金付'?'/月 · 随租金付':' · 一次付清'}`)).join('')||row('其他费用','无')}
+   ${row('业务状态',st)}
+  </div>
+  <div class="sec"><h3>其他信息</h3>
+   ${row('办理人',esc(c.op))}
+   ${row('录入日期',c.entry)}
+   ${row('合同扫描件',c.scans?c.scans+' 个附件':'—')}
+   ${row('补充条款',esc(c.terms)||'—')}
+   ${row('合同备注',esc(c.note)||'—')}
+   ${c.emergency?row('紧急联系人',`${esc(c.emergency.name)}（${esc(c.emergency.rel)}）${c.emergency.phone}`):''}
+   ${c.source?row('签约来源',esc(c.source.type)+(c.source.from?` · <a href="#contract?id=${c.source.from}">查看关联合同</a>`:'')):row('签约来源','新签')}
+  </div>
+  ${c.term?`<div class="sec"><h3>终止信息</h3>${row('实际退租日',c.term.X)}${row('办理人',esc(c.term.by))}<a class="ref" href="#settlement?id=${c.term.sid}">查看结算单 ›</a></div>`:''}
+  ${c.voided?`<div class="sec"><h3>作废信息</h3>${row('作废原因','重签')}${row('作废日期',c.voidedAt||'—')}${c.resignTo?`<a class="ref" href="#contract?id=${c.resignTo}">查看新合同 ›</a>`:''}</div>`:''}
+  ${!c.term&&!c.voided&&st=='已到期'?`<div class="sec"><h3>到期信息</h3>${row('到期日',c.end)}<div class="helper">已到期未退租，请办理退租或续租。</div></div>`:''}`;
+  bar=canAct?contractActionBar(c):'';
+ }
+ if(tab=='账单'){
+  const pending=bl.filter(b=>['待收','部分收款'].includes(K.billStatus(b)));
+  const done=bl.filter(b=>['已收','已完成'].includes(K.billStatus(b)));
+  const pays=S.payables.filter(p=>p.cid==c.id);
+  const sumP=K.sum(pending.map(b=>K.billTotal(b))),sumD=K.sum(done.map(b=>K.billTotal(b)));
+  body=`<div class="sec"><div class="row"><span><b>待处理（${pending.length}）</b></span><b>${money(sumP)} 合计</b></div>
+   ${pending.map(b=>contractBillCard(b)).join('')||'<div class="helper">暂无</div>'}</div>
+   <div class="sec"><div class="row"><span><b>已完成（${done.length}）</b></span><b>${money(sumD)} 合计</b></div>
+   ${done.map(b=>contractBillCard(b)).join('')||'<div class="helper">暂无</div>'}</div>
+   ${pays.length?`<div class="sec"><h3>付款账单</h3>${pays.map(p=>payCard(p,c)).join('')}</div>`:''}`;
+  bar=canAct?`<div class="actionbar bill-actions"><button class="mini" onclick="flash('发票：待实现')">发票</button><button class="btn sec2" id="btn-reset-bills" onclick="doResetBills('${c.id}')">重置账单</button><button class="btn sec2" id="btn-add-bill" onclick="doAddBill('${c.id}')">添加账单</button><button class="btn" id="btn-batch-collect" onclick="openBatchCollect('${c.id}')">批量收款</button></div>`:'';
+ }
+ if(tab=='承租人'){body=`<div class="sec"><h3>承租人</h3>${row('姓名',esc(c.who)||'待承租人实名补充')}${row('手机号',c.phone)}${row('证件类型',esc(c.idType)||'—')}${row('证件照',c.idPhotos?c.idPhotos+' 张':'—')}${row('证件号码',c.idNo?c.idNo.slice(0,4)+'**********'+c.idNo.slice(-4):'—')}</div>`;bar=canAct?contractActionBar(c):''}
+ if(tab=='入住人'){body=c.rooms.map(x=>`<div class="sec"><h3>${esc(K.addrOf(c,x.r))} · ${c.term||c.voided?'本合同入住期间 '+(x.in?x.in:'未记录')+' 至 '+(x.out||'—'):K.leaseSt(S,c,x,T)+(x.in?' · 实际入住时间 '+x.in:'')}</h3>
+  ${(c.occupants[x.r]||[]).map((o,i)=>`<div class="row"><span>${o.phone}${o.self?' <span class="tag">本人</span>':''} <span class="helper">${o.how}</span></span><b><span class="tag ${o.st=='已生效'?'ok':'warn'}">${o.st}</span> ${canAct&&!x.out?`${o.st=='待同意'?`<button class="mini" onclick="occAgree('${c.id}','${x.r}',${i})">同意</button>`:''}<button class="mini" onclick="occDel('${c.id}','${x.r}',${i})">删除</button>`:''}</b></div>`).join('')||'<div class="helper">暂无入住人</div>'}
+  ${canAct&&!x.out?`<div class="btns">${!x.in?`<button class="mini mvin" onclick="moveIn('${c.id}','${x.r}')">记录实际入住时间</button>`:''}<button class="mini" onclick="occAdd('${c.id}','${x.r}')">手机号添加</button><button class="mini" onclick="alert('展示不记名二维码：入住人扫码申请后出现在列表（待同意）。')">二维码添加</button></div>`:''}</div>`).join('');bar=canAct?contractActionBar(c):''}
  return nav('合同详情',1,'contract')+`<div class="wrap has-ab"><div class="status ${st=='生效中'?'on':''}"><div class="t" id="cstatus">${st}</div></div>
  <div class="card" onclick="document.getElementById('rm').classList.add('open')">${titleOf(c)}<div class="helper">${esc(c.who||'待承租人实名补充')} ${esc(c.phone)} <span class="act-links"><button type="button" class="mini" data-phone="${esc(c.phone)}" onclick="copyPhone(event,this.dataset.phone)">复制</button><a class="mini" href="tel:${esc(c.phone)}" onclick="event.stopPropagation()">拨打</a></span> · 点击查看房间</div></div>
  <div class="mask" id="rm" onclick="this.classList.remove('open')"><div class="sheet"><b>房间</b>${c.rooms.map(x=>row(esc(K.addrOf(c,x.r)),x.out?'已退租 '+x.out:K.leaseSt(S,c,x,T))).join('')}<div class="btns"><button class="btn sec2">关闭</button></div></div></div>
- <div class="tabs">${['合同','账单','承租人','入住人'].map(x=>`<span class="${x==tab?'act':''}" onclick="go('contract',{id:'${c.id}',tab:'${x}'})">${x}</span>`).join('')}</div>${body}</div>
- ${canOut?`<div class="actionbar"><button class="btn sec2" onclick="go('renew',{id:'${c.id}'})">续租</button>${c.rooms.length==1?`<button class="btn sec2" id="btn-swap" onclick="go('swap',{id:'${c.id}'})">换房</button>`:`<button class="btn sec2" disabled title="多房合同不支持换房">换房</button>`}<button class="btn" id="btn-checkout" onclick="go('checkout',{id:'${c.id}'})">退租</button></div>${c.rooms.length>1?'<div class="helper" style="padding:0 12px 8px">多房合同不支持换房</div>':''}`:''}`+tabbar('home')};
+ <div class="tabs">${_tabs.map(x=>`<span class="${x==tab?'act':''}" onclick="go('contract',{id:'${c.id}',tab:'${x}'})">${x}</span>`).join('')}</div>${body}</div>${bar}`+tabbar('home')};
+function contractBillCard(b){const s=K.billStatus(b),rel=dueLabel(b),amt=K.billTotal(b);return `<a class="card bc" href="#bill?id=${b.id}" data-bid="${b.id}"><div class="bt"><span>${esc(contractBillTitle(b))}</span><span class="amount">${amt>=0?'+ ':''}${money(amt)}</span></div><div class="bb"><span>账期 ${period(b)}</span></div><div class="bb"><span>应付日 ${b.due}</span><span>${rel?`<b class="od">${rel}</b>`:`<span class="tag ${s=='已收'||s=='已完成'?'ok':'warn'}">${s}</span>`}</span></div></a>`}
+function contractActionBar(c){const swap=c.rooms.length==1?`<button class="btn sec2" id="btn-swap" onclick="go('swap',{id:'${c.id}'})">换房</button>`:'';
+ return `<div class="actionbar"><button class="mini" id="btn-more" onclick="openMoreSheet('${c.id}')">更多</button><button class="btn sec2" id="btn-resign" onclick="startResign('${c.id}')">重签</button>${swap}<button class="btn sec2" onclick="go('renew',{id:'${c.id}'})">续租</button><button class="btn" id="btn-checkout" onclick="go('checkout',{id:'${c.id}'})">退租</button></div>`}
 function billCard(b,c){const s=K.billStatus(b),od=K.odays(b,T);return `<a class="card bc" href="#bill?id=${b.id}" data-bid="${b.id}"><div class="bt"><span>${esc(billTitle(b,c))}</span><span class="amount">${money(K.billTotal(b))}</span></div><div class="bb"><span>账期 ${period(b)}</span><span class="tag ${s=='已收'||s=='已完成'?'ok':'warn'}">${s}</span></div><div class="bb"><span>应付日 ${b.due}</span><span>待收 ${money(Math.max(0,K.billOut(b)))}${od?` <b class="od">逾期${od}天</b>`:''}</span></div><div class="helper">${esc(K.titleText(c))} · 共${c.rooms.length}间房</div></a>`}
 function payCard(p,c){return `<a class="card bc" href="#pay?id=${p.id}" data-pid="${p.id}"><div class="bt"><span>付款账单·${esc(c.who||'待承租人实名补充')}</span><span class="amount">${money(p.amount)}</span></div><div class="bb"><span>付款账单 · ${esc(p.reason)}</span><span class="tag ${p.status=='已完成'?'ok':'warn'}">${p.status}</span></div><div class="bb"><span>支付日 ${p.due}</span><span>${p.date?'已付 '+p.date:''}</span></div><div class="helper">${esc(K.titleText(c))} · 共${c.rooms.length}间房</div></a>`}
 P.bills=(q)=>{const side=q.side||'in',bld=q.bld||'全部楼栋';
@@ -96,7 +134,7 @@ P.rooms=()=>nav('房源',1,'rooms')+'<div class="wrap">'+Object.entries(K.BUILDI
 P.room=(q)=>{const r=q.r,b=K.bldOf(r);const cs=S.contracts.filter(c=>c.rooms.some(x=>x.r==r)).reverse();const busy=K.roomBusy(S,r);
  return nav(b+r,1,'room')+`<div class="wrap"><div class="status"><div class="t">${roomSt(r)}</div></div>${!busy?`<a class="btn" id="room-register" href="#register?new=1&r=${r}">租客登记</a><div style="height:10px"></div>`:''}<div class="sec"><h3>租约</h3>${cs.map(c=>{const x=c.rooms.find(y=>y.r==r);return `<a class="ref" href="#contract?id=${c.id}">${esc(c.who||c.phone)} · ${c.start} 至 ${c.end}<span class="helper">${K.cStatus(c,T)} · 本房 ${K.leaseSt(S,c,x,T)}${x.out?' '+x.out:''} · 合同月租 ${money(c.rent)}</span></a>`}).join('')||'<div class="helper">暂无</div>'}</div></div>`+tabbar('rooms')};
 // ----- 租客登记（表单草稿保存在 sessionStorage，子页面往返不丢失）-----
-const DK='yuzhi-reg-draft';const newDraft=()=>({rooms:[],sign:'',phone:'',who:'',idNo:'',idType:'',idPhotos:0,start:'',end:'',rent:'',payN:'1',depM:'1',dep:'',depTouched:false,fees:[],ruleType:'before',ruleV:'7',scans:0,terms:'',note:'',eName:'',eRel:'',ePhone:'',q:''});
+const DK='yuzhi-reg-draft';const newDraft=()=>({rooms:[],sign:'',phone:'',who:'',idNo:'',idType:'',idPhotos:0,start:'',end:'',rent:'',payN:'1',depM:'1',dep:'',depTouched:false,fees:[],ruleType:'before',ruleV:'7',scans:0,terms:'',note:'',eName:'',eRel:'',ePhone:'',q:'',resignFrom:''});
 let D=null;function dget(){if(!D){try{D=JSON.parse(sessionStorage.getItem(DK))}catch(e){}if(!D)D=newDraft()}return D}function dsave(){sessionStorage.setItem(DK,JSON.stringify(D))}
 window.dset=(k,v)=>{dget()[k]=v;dsave()};window.__draft=()=>dget();
 function roomSt(r){const cs=S.contracts.filter(c=>!c.term&&c.rooms.some(x=>x.r==r&&!x.out));if(!cs.length)return '无租赁';return [...new Set(cs.map(c=>K.leaseSt(S,c,c.rooms.find(x=>x.r==r),T)))].join('/')}window.roomSt=roomSt;
@@ -104,7 +142,7 @@ const inp=(k,ph,extra)=>`<input class="input" id="f-${k}" value="${esc(dget()[k]
 const sub=(id,label,val,to)=>`<a class="card entry" id="${id}" href="#${to}"><span>${label}</span><span class="helper">${val} ›</span></a>`;
 P.register=(q)=>{if(q.new){D=newDraft();if(q.r)D.rooms.push({r:q.r});dsave();history.replaceState(null,'','#register');}const d=dget();
  const res=K.searchRooms(d.q);
- return nav('租客登记',1,'register')+`<div class="wrap form has-ab">
+ return nav(d.resignFrom?'重签登记':'租客登记',1,'register')+`<div class="wrap form has-ab">${d.resignFrom?`<div class="helper">重签来源合同已预填，确认登记后原合同作废并关闭其账单。</div>`:''}
  <div class="step">1 添加房源</div><input class="input" id="f-q" placeholder="搜索地址 / 楼栋 / 房号" value="${esc(d.q)}" oninput="dset('q',this.value);regSearch()">
  <div id="sres">${searchHtml(res)}</div>
  <div id="sel">${d.rooms.length?d.rooms.map(x=>`<span class="tag on chip" data-r="${x.r}">${esc(K.bldOf(x.r)+x.r)} · ${roomSt(x.r)} <a href="javascript:regDel('${x.r}')" style="color:#fff">✕</a></span> `).join(''):'<div class="helper">尚未选择房间</div>'}</div>
@@ -134,7 +172,7 @@ P['reg-more']=()=>{const d=dget();return nav('更多',1,'register')+`<div class=
  <label class="f">补充条款<textarea class="input" id="f-terms" style="height:80px" oninput="dset('terms',this.value)">${esc(d.terms)}</textarea></label><label class="f">合同备注（最多1000字符）<textarea class="input" id="f-note" maxlength="1000" style="height:80px" oninput="dset('note',this.value)">${esc(d.note)}</textarea></label><div style="height:10px"></div><a class="btn" id="more-done" href="#register">完成</a></div>`};
 P['reg-emg']=()=>nav('紧急联系人',1,'register')+`<div class="wrap form"><div class="helper">选填；填写则关系、手机号、姓名须完整。</div><label class="f">关系${inp('eRel')}</label><label class="f">手机号${inp('ePhone','','maxlength="11"')}</label><label class="f">姓名${inp('eName')}</label><div style="height:10px"></div><a class="btn" id="emg-done" href="#register">完成</a></div>`;
 function regForm(){const d=dget();return {phone:d.phone.trim(),who:d.who.trim(),idType:d.idType.trim(),idNo:d.idNo.trim(),rooms:d.rooms.map(x=>({r:x.r})),rent:d.rent===''?NaN:+d.rent,start:d.start,end:d.end,sign:d.sign,payN:Number(d.payN),depM:Number(d.depM),dep:d.dep===''?NaN:+d.dep,
- payRule:d.ruleType=='fixed'?{type:'fixed',day:+d.ruleV}:{type:'before',days:+d.ruleV},fees:d.fees.map(f=>({name:String(f.name).trim(),mode:f.mode,amount:+f.amount})),emergency:{name:d.eName.trim(),rel:d.eRel.trim(),phone:d.ePhone.trim()},terms:d.terms,note:d.note,scans:d.scans,idPhotos:d.idPhotos,op:'房东'}}
+ payRule:d.ruleType=='fixed'?{type:'fixed',day:+d.ruleV}:{type:'before',days:+d.ruleV},fees:d.fees.map(f=>({name:String(f.name).trim(),mode:f.mode,amount:+f.amount})),emergency:{name:d.eName.trim(),rel:d.eRel.trim(),phone:d.ePhone.trim()},terms:d.terms,note:d.note,scans:d.scans,idPhotos:d.idPhotos,op:'房东',resignFrom:d.resignFrom||undefined}}
 window.toPreview=()=>{const e=K.validateReg(S,regForm());if(e.length){document.getElementById('rerr').textContent=e.join('；');window.scrollTo(0,document.body.scrollHeight);return}go('reg-preview')};
 function pvBills(f){const d=dget();const key=JSON.stringify({...f,bills:undefined});if(!d.pv||d.pvKey!==key){d.pv=K.previewBills(f).map(b=>({...b,paid:false}));d.pvKey=key;dsave()}return d.pv}
 window.pvSet=(bi,ii,v)=>{const d=dget();if(ii<0)d.pv[bi].due=v;else d.pv[bi].items[ii].amount=v===''?NaN:+v;dsave();const t=document.getElementById('pt'+bi);if(t)t.textContent=money(K.sum(d.pv[bi].items.map(i=>+i.amount||0)))};
@@ -145,7 +183,7 @@ P['reg-preview']=()=>{const f=regForm();const e=K.validateReg(S,f);if(e.length)r
  ${bl.map((b,bi)=>`<div class="sec pbill"><h3>${b.k=='dep'?'押金账单':'租金 第'+b.n+'期 · '+b.s+' 至 '+b.e}</h3>${b.items.map((i,ii)=>`<div class="row"><span>${esc(i.name)}</span><b><input class="input pv-amt" style="width:120px;height:32px" type="number" step="0.01" value="${i.amount}" oninput="pvSet(${bi},${ii},this.value)"></b></div>`).join('')}
  <div class="row"><span>支付日</span><b><input class="input pv-due" style="width:150px;height:32px" type="date" value="${b.due}" oninput="pvSet(${bi},-1,this.value)"></b></div>${row('<b>账单金额</b>','<b id="pt'+bi+'">'+money(K.sum(b.items.map(i=>+i.amount||0)))+'</b>')}<label class="chk"><input type="checkbox" class="pv-paid" ${b.paid?'checked':''} onchange="pvPaid(${bi},this.checked)"> 已线下收款</label></div>`).join('')}<div class="err-t" id="rerr"></div></div>
  <div class="actionbar"><button class="btn sec2" onclick="history.back()">返回修改</button><button class="btn" id="do-register" onclick="doRegister()">确认登记</button></div>`+tabbar('home')};
-window.doRegister=()=>{try{const f=regForm();f.bills=pvBills(f).map(b=>({...b,items:b.items.map(i=>({...i,amount:K.r2(+i.amount)}))}));const c=K.register(S,f,T+' '+new Date().toTimeString().slice(0,5));save();sessionStorage.removeItem(DK);D=null;const ev=S.events.filter(e=>e.cid==c.id).pop();go('result',{ev:ev.id})}catch(e){document.getElementById('rerr').textContent=e.message}};
+window.doRegister=()=>{try{const f=regForm();f.bills=pvBills(f).map(b=>({...b,items:b.items.map(i=>({...i,amount:K.r2(+i.amount)}))}));const at=T+' '+new Date().toTimeString().slice(0,5);const c=f.resignFrom?K.resignApply(S,f.resignFrom,f,at):K.register(S,f,at);save();sessionStorage.removeItem(DK);D=null;const ev=S.events.filter(e=>e.cid==c.id).pop();go('result',{ev:ev.id})}catch(e){document.getElementById('rerr').textContent=e.message}};
 // ----- 退租（整份合同结算）-----
 let CO=null;
 P.checkout=(q)=>{const c=K.C(S,q.id);if(!c)return nav('退租',1)+'<div class="wrap">合同不存在</div>';if(c.term)return nav('退租',1)+'<div class="wrap">合同已终止</div>';
@@ -164,7 +202,7 @@ P.result=(q)=>{const e=S.events.find(x=>x.id==q.ev);if(!e)return nav('办理结�
  let body='';
  if(e.type=='租客登记'){body=`<div class="sec">${row('房间',c.rooms.map(x=>esc(K.addrOf(c,x.r))).join('、'))}${row('月租金',money(c.rent))}${row('合同租期',c.start+' 至 '+c.end)}${row('承租人',esc(c.who||'待承租人实名补充')+' '+c.phone)}${row('已生成账单',K.billsOf(S,c.id).length+' 笔')}</div><div class="sec"><h3>邀请二维码</h3><div style="width:120px;height:120px;border:1px dashed #888;display:flex;align-items:center;justify-content:center" class="helper">二维码占位</div></div>`}
  else if(e.type=='换房'){const nc=S.contracts.find(x=>x.id==e.cid);body=`<div class="sec">${row('新合同',titleOf(nc))}${row('租期',nc.start+' 至 '+nc.end)}${row('月租金',money(nc.rent))}</div>${e.sid?`<a class="ref" href="#settlement?id=${e.sid}">原合同结算单 ›</a>`:''}${e.from?`<a class="ref" href="#contract?id=${e.from}">原合同 ›</a>`:''}`}
- else if(e.type=='续租'){body=`<div class="sec">${row('新合同',titleOf(c))}${row('租期',c.start+' 至 '+c.end)}${row('月租金',money(c.rent))}</div>${e.from?`<a class="ref" href="#contract?id=${e.from}">原合同 ›</a>`:''}`}
+ else if(e.type=='续租'||e.type=='重签'){body=`<div class="sec">${row('新合同',titleOf(c))}${row('租期',c.start+' 至 '+c.end)}${row('月租金',money(c.rent))}${e.type=='重签'?'<div class="helper">原合同已作废，账单已关闭且不计入汇总。</div>':''}</div>${e.from?`<a class="ref" href="#contract?id=${e.from}">原合同 ›</a>`:''}`}
  else {body=`${e.sid?`<a class="ref" href="#settlement?id=${e.sid}">查看结算单 ›</a>`:''}`}
  return nav('办理结果',1,'result')+`<div class="wrap"><div class="status on"><div class="t">${e.type}办理成功</div><div class="s">${esc(e.text)}</div></div>${body}<a class="btn sec2" id="to-contract" href="#contract?id=${c.id}">${e.type=='租客登记'?'查看合同详情':'返回合同'}</a></div>`+tabbar('home')};
 // ----- 换房（仅单房） / 续租 -----
@@ -190,6 +228,18 @@ P.renew=(q)=>{const c=K.C(S,q.id);if(!c)return nav('续租',1)+'<div class="wrap
  <label class="f">押金<input class="input" id="rn-dep" type="number" value="${esc(window.RN.dep)}" onchange="window.RN.dep=this.value"></label>
  <div class="err-t" id="rnerr"></div></div><div class="actionbar"><button class="btn" id="do-renew" onclick="doRenew()">确认续租</button></div>`+tabbar('home')};
 window.doRenew=()=>{try{const nc=K.renewApply(S,window.RN.cid,window.RN.end,window.RN.rent,window.RN.dep,'房东',T+' 12:00');save();const ev=S.events.filter(e=>e.cid==nc.id&&e.type=='续租').pop();window.RN=null;go('result',{ev:ev.id})}catch(e){document.getElementById('rnerr').textContent=e.message}};
+
+// ----- 合同详情操作 -----
+window.openMoreSheet=id=>{document.getElementById('more-sheet')?.remove();const d=document.createElement('div');d.id='more-sheet';d.className='mask open';d.innerHTML=`<div class="sheet"><b>更多</b><button class="btn sec2" id="btn-delete" onclick="doSoftDelete('${id}')">删除</button><div class="btns"><button class="btn sec2" onclick="document.getElementById('more-sheet').remove()">取消</button></div></div>`;d.onclick=e=>{if(e.target===d)d.remove()};document.body.append(d)};
+window.doSoftDelete=id=>{if(!confirm('从列表移除该合同？（软删除，可重置示例数据恢复）'))return;try{K.softDelete(S,id,'房东');save();document.getElementById('more-sheet')?.remove();go('contracts');flash('已删除')}catch(e){alert(e.message)}};
+window.startResign=id=>{const c=K.C(S,id);D=newDraft();D.resignFrom=id;D.rooms=c.rooms.map(x=>({r:x.r}));D.sign=c.sign;D.phone=c.phone;D.who=c.who||'';D.idType=c.idType||'';D.idNo=c.idNo||'';D.idPhotos=c.idPhotos||0;D.start=c.start;D.end=c.end;D.rent=String(c.rent);D.payN=String(c.payN);D.depM=String(c.depM);D.dep=String(c.dep);D.depTouched=true;D.fees=(c.fees||[]).map(f=>({...f,amount:String(f.amount)}));D.ruleType=c.payRule.type=='fixed'?'fixed':'before';D.ruleV=String(c.payRule.day||c.payRule.days||7);D.scans=c.scans||0;D.terms=c.terms||'';D.note=c.note||'';if(c.emergency){D.eName=c.emergency.name||'';D.eRel=c.emergency.rel||'';D.ePhone=c.emergency.phone||''}dsave();go('register')};
+window.doAddBill=id=>{const name=prompt('费用名称（如：卫生费）');if(name==null)return;const amount=prompt('金额');if(amount==null)return;const due=prompt('应付日 YYYY-MM-DD',T);if(due==null)return;try{K.addCustomBill(S,id,name,amount,due,'房东');save();render();flash('已添加账单')}catch(e){alert(e.message)}};
+window.doResetBills=id=>{if(!confirm('重置账单：删除未收款的租金账单，按合同条款重新生成；已收款账单保留并标为已完成。确定？'))return;try{K.resetBills(S,id,'房东');save();render();flash('已重置账单')}catch(e){alert(e.message)}};
+window.openBatchCollect=id=>{const c=K.C(S,id);const pending=K.billsOf(S,id).filter(b=>['待收','部分收款'].includes(K.billStatus(b)));if(!pending.length){flash('没有待处理账单');return}
+ document.getElementById('batch-sheet')?.remove();const d=document.createElement('div');d.id='batch-sheet';d.className='mask open';
+ d.innerHTML=`<div class="sheet"><b>批量收款</b><div class="helper">勾选待处理账单，确认后按待收金额记线下全额收款。</div>${pending.map(b=>`<label class="chk"><input type="checkbox" class="batch-bill" value="${b.id}" checked> ${esc(contractBillTitle(b))} · 待收 ${money(K.billOut(b))}</label>`).join('')}<label class="f">收款日期<input class="input" id="batch-date" type="date" value="${T}"></label><div class="err-t" id="batcherr"></div><div class="btns"><button class="btn sec2" onclick="document.getElementById('batch-sheet').remove()">取消</button><button class="btn" id="confirm-batch" onclick="doBatchCollect()">确认收款</button></div></div>`;
+ d.onclick=e=>{if(e.target===d)d.remove()};document.body.append(d)};
+window.doBatchCollect=()=>{try{const ids=[...document.querySelectorAll('.batch-bill:checked')].map(e=>e.value);K.batchCollect(S,ids,document.getElementById('batch-date').value,'房东');save();document.getElementById('batch-sheet')?.remove();render();flash('批量收款完成')}catch(e){document.getElementById('batcherr').textContent=e.message}};
 // ----- occupants -----
 window.moveIn=(cid,r)=>{const d=prompt('实际入住时间（YYYY-MM-DD）',T);if(!d)return;try{K.moveIn(S,cid,r,d);save();render()}catch(e){alert(e.message)}};
 window.occAdd=(cid,r)=>{const p=prompt('入住人手机号');if(!p)return;try{K.addOcc(S,cid,r,p.trim());save();render()}catch(e){alert(e.message)}};

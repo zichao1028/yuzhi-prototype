@@ -1,26 +1,14 @@
-<meta charset="utf-8"><title>功能说明</title><style>body{font-family:sans-serif;max-width:720px;margin:24px auto;padding:0 16px;line-height:1.55;color:#222}h2{border-bottom:1px solid #ccc;padding-bottom:4px}.toc a{margin-right:12px}</style>
-<div class="toc"><a href="#home">首页</a><a href="#register">租客登记</a><a href="#bill">账单</a><a href="#checkout">退租</a><a href="#swap">换房续租</a><a href="#calc">计算</a><a href="#contract">合同</a></div>
-<h2 id="home">首页 / 我的</h2><ul><li>入口：租客登记、合同、房源、账单、功能说明；重置示例数据。</li></ul>
-<h2 id="register">租客登记</h2><ul>
-<li>顺序：①添加房源（模糊搜索，展示租赁状态）②签约方式③承租方④合同信息（合同级月租金、押金、其他费用）⑤去核对账单。</li>
-<li>月租金按<strong>整份合同</strong>填写，不再按房间拆分。押金默认 押M×月租金。房间只表示承租范围。</li>
-<li>账单预览：押金 + 各期「租金」账单项（及费用项）；可改金额/支付日、勾选已线下收款。</li>
+<meta charset="utf-8"><title>功能说明</title><style>body{font-family:sans-serif;max-width:720px;margin:24px auto;padding:0 16px;line-height:1.55}h2{border-bottom:1px solid #ccc;padding-bottom:4px}.toc a{margin-right:10px}</style>
+<div class="toc"><a href="#register">登记</a><a href="#bill">账单</a><a href="#contract">合同详情</a><a href="#checkout">退租</a><a href="#resign">重签</a><a href="#swap">换房续租</a></div>
+<h2 id="register">租客登记</h2><ul><li>合同级月租金；选房不拆租金。流程：添加房源→签约方式→承租方→合同信息→核对账单。</li></ul>
+<h2 id="bill">TabBar 账单</h2><ul><li>汇总仅总金额/已收/待收（付款侧已付/待付）；无批量。</li><li>卡片标题含承租人（租金·N期·姓名）；地址次行（跨合同列表需要）。</li></ul>
+<h2 id="contract">合同详情</h2><ul>
+<li>页签：合同 / 账单 / 承租人 / 入住人（无办理记录）。复制、拨打保留。</li>
+<li>合同页：邀请绑定→入住人；合同详情字段仅文档已有（期间、月租金、押金、付款方式、支付时间、签约方式、房间、其他费用、业务状态）；其他信息含办理人、录入日、来源（新签/重签/续租关联）。</li>
+<li>账单页：标题仅「租金·N期 / 押金 / 结算应收 / 自定义名」，无承租人、无地址行。分区「待处理」「已完成」带笔数与合计。卡片：金额±、账期、应付日、N天后/逾期N天。</li>
+<li>账单页底栏：发票（待实现）、重置账单、添加账单、批量收款。</li>
+<li>底栏（合同/承租人/入住人）：更多（删除=软删除）、重签、换房（仅单房，多房不展示）、续租、退租。</li>
 </ul>
-<h2 id="bill">账单</h2><ul>
-<li>收款/付款切换；汇总仅 总金额/已收/待收（付款侧为总金额/已付/待付）。无批量选择、无笔数统计。</li>
-<li>卡片标题：租金·N期·承租人 / 押金·承租人；地址在次行。合同详情「账单」页签同款样式。</li>
-<li>状态：待收/部分收款/已收/已完成。</li>
-</ul>
-<h2 id="checkout">退租</h2><ul>
-<li><strong>无部分退租</strong>。点退租直接进入整份合同结算：填实际退租日、其他费用、扣款；确认后全部房间退租、合同终止、账单已完成，生成结算单。</li>
-<li>结算 = 已收净额 − 实际租金（合同月租自开始日至退租日）− 其他费用 − 扣款。</li>
-</ul>
-<h2 id="swap">换房 / 续租</h2><ul>
-<li>换房：仅<strong>单房合同</strong>。多房按钮禁用并提示「多房合同不支持换房」。单房：选退租日、新房间、新结束日 → 原合同结算终止 + 新合同登记（起租=退租次日）。</li>
-<li>续租：新开合同，起租=原结束日次日，原合同不自动终止。</li>
-</ul>
-<h2 id="calc">计算规则</h2><ul><li>计租月以开始日日号为锚；不足整月按 ÷30。分期按付N。</li></ul>
-<h2 id="contract">合同 / 房源</h2><ul>
-<li>详情页签：合同 / 账单 / 承租人 / 入住人（无办理记录）。第二行保留复制、拨打。</li>
-<li>租赁状态：已退租/待搬入/已入住。</li>
-</ul>
+<h2 id="checkout">退租</h2><ul><li>整份合同结算，无选房、无部分退租。</li></ul>
+<h2 id="resign">重签</h2><ul><li>预填租客登记；确认后新合同生效，原合同作废并关闭账单（不计入汇总）；新旧账单独立、不结转收付。重签时租期可与原合同重叠。</li></ul>
+<h2 id="swap">换房 / 续租</h2><ul><li>换房仅单房。续租新开合同，起租=原结束次日。</li></ul>

@@ -56,3 +56,5 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 
 .act-links{display:inline-flex;gap:4px;vertical-align:middle}.act-links .mini{border-style:dashed}
 .bc .bt{gap:8px}.bc .amount{white-space:nowrap;flex-shrink:0}
+
+.bill-actions .mini{flex:0 0 auto}.bill-actions .btn{flex:1}.bc .amount{font-weight:600}
