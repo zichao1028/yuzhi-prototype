@@ -170,11 +170,16 @@ function swapApply(st,cid,X,newRoom,end,rent,by,at){const c=C(st,cid);if(c.rooms
  const nc=register(st,draft,at||TODAY+' 12:30');
  const ev=log(st,nc.id,at,by,'换房',`${addrOf(c,c.rooms[0].r)} → ${bldOf(newRoom)+newRoom} · ${start} 至 ${end}`,[],{from:cid,X,sid:oldEv.sid});
  return {oldEv,newContract:nc,ev}}
-function renewApply(st,cid,end,rent,dep,by,at){const c=C(st,cid);if(!end)throw new Error('请填写新结束日');if(end<=c.end)throw new Error('新结束日须晚于原合同结束日');
+function renewApply(st,cid,end,rent,dep,by,at){const c=C(st,cid);if(c.term)throw new Error('合同已终止');if(c.voided)throw new Error('合同已作废');
+ if(!end)throw new Error('请填写新结束日');if(end<=c.end)throw new Error('新结束日须晚于原合同结束日');
  const start=addD(c.end,1);const nr=rent!=null&&rent!==''?+rent:c.rent;const nd=dep!=null&&dep!==''?+dep:c.dep;
  if(!(nr>0))throw new Error('月租金须大于 0');if(!(nd>=0))throw new Error('押金不能为负');
- const draft={phone:c.phone,who:c.who,idType:c.idType,idNo:c.idNo,rooms:c.rooms.map(x=>({r:x.r})),rent:nr,start,end,sign:c.sign,payN:c.payN,depM:c.depM,dep:nd,payRule:c.payRule,fees:c.fees||[],emergency:c.emergency,op:by||c.op,scans:0,idPhotos:0,terms:c.terms||'',note:c.note||''};
+ const draft={phone:c.phone,who:c.who,idType:c.idType,idNo:c.idNo,rooms:c.rooms.map(x=>({r:x.r})),rent:nr,start,end,sign:c.sign,payN:c.payN,depM:c.depM,dep:nd,payRule:c.payRule,fees:c.fees||[],emergency:c.emergency,op:by||c.op,scans:0,idPhotos:0,terms:c.terms||'',note:c.note||'',source:{type:'续租',from:cid}};
  const nc=register(st,draft,at||TODAY+' 12:00');
+ // v1 简化：办理续租即按原结束日记原合同退租释放占用；押金正式结算/抵扣见文档条件，本版标记待结算
+ c.rooms.forEach(x=>{x.out=c.end;c.occupants[x.r]=(c.occupants[x.r]||[]).map(o=>({...o,ended:o.ended||c.end}))});
+ c.term={X:c.end,at:at||TODAY+' 10:00',by:by||'房东',reason:'续租',afterStatus:'空房可租',settled:false,renewTo:nc.id};
+ log(st,cid,at,by,'续租退租',`${titleText(c)} · 原合同于 ${c.end} 退租待结算押金`,[],{X:c.end,renewTo:nc.id});
  log(st,nc.id,at,by,'续租',`续自 ${titleText(c)} · ${start} 至 ${end}`,[],{from:cid});
  return nc}
 function moveIn(st,cid,r,date){const c=C(st,cid);const x=c.rooms.find(y=>y.r==r);if(x.in)throw new Error('已记录实际入住时间');if(!date||date>TODAY)throw new Error('实际入住时间不能晚于今天');x.in=date;log(st,cid,date+' 10:00','房东','记录实际入住时间',`${addrOf(c,r)} 实际入住时间 ${date}`,[])}

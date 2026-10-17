@@ -26,7 +26,7 @@ ok(typeof K.partialPreview==='undefined'&&typeof K.partialApply==='undefined','n
  ok(ls.term&&r.newContract.rooms[0].r=='304'&&r.newContract.rent==1600&&r.newContract.start=='2026-10-18','swap core');}
 // renew core
 {const t=K.seed();const zs=t.contracts.find(c=>c.who=='赵六');const nc=K.renewApply(t,zs.id,'2027-07-31',1800,1800,'房东','2026-10-17 12:00');
- ok(nc.start=='2026-08-01'&&nc.end=='2027-07-31'&&!zs.term,'renew core');}
+ ok(nc.start=='2026-08-01'&&nc.end=='2027-07-31'&&zs.term&&zs.term.settled===false&&zs.term.reason=='续租','renew core');}
 // multi-room swap rejected
 {const t=K.seed();const z=t.contracts[0];let err='';try{K.swapApply(t,z.id,'2026-10-17','304','2027-01-01',3300)}catch(e){err=e.message}ok(err.includes('多房'),'multi swap blocked')}
 console.log('seed checks',pass,'pass',fail,'fail');
