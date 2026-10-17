@@ -8,10 +8,13 @@ filterDropdownSheet 增加 ariaLabel；filterBar 共用单入口草稿控制、�
 
 修改 app.js、core.js、styles.css、test.js、index.html。资源版本 filter-unify-20261018-0503（Asia/Shanghai）。
 
-验证：语法检查与 git diff --check 通过。node test.js 的核心及 VM 渲染/交互检查 446 pass / 0 fail，覆盖楼栋匹配、旧链接、各页公共 sheet、确认/重置/遮罩丢弃、入口互斥及房源单选取消。浏览器用例已补齐，但全量测试未完成：沙箱禁止 socket，Chrome 在 setsockopt 处启动失败；本地 HTTP 服务同样无法启动。未将这些检查冒充浏览器验证。
+测试修正：账单列表关闭状态检查「已收（元）」「作废账单」及 #btn-bills-more；打开筛选 sheet 后检查「仅逾期」。
 
-测试修正：账单列表关闭状态继续检查「已收（元）」「作废账单」及筛选入口；点击 #btn-bills-more 后，在 .filter-dd-sheet 内检查「仅逾期」，再关闭弹层。扫描 test.js 未发现其他依赖关闭页面展示筛选选项的过期断言；费用类型、工单类型、合同状态等已有打开公共 sheet 后的交互覆盖。未修改账单业务状态语义。
+验证：node test.js **654 pass / 0 fail**（含浏览器）。Commit `f96aab7` 已 push main。
 
-本次复验：node test.js 为核心及 VM 检查 446 pass / 0 fail，Puppeteer 启动 Chrome 仍报 setsockopt: Operation not permitted (1)，因此无法确认浏览器全量通过。保留原有未跟踪 rooms-mobile-after.png，不纳入提交。
-
-交付阻塞（本次复验）：git add 指定的六个文件时失败：fatal: Unable to create '/workspace/yuzhi-prototype/.git/index.lock': Read-only file system。因此未能创建提交或推送，本次变更尚未部署。
+发布：
+- https://zichao1028.github.io/yuzhi-prototype/?v=filter-unify-20261018-0503#rooms
+- https://zichao1028.github.io/yuzhi-prototype/?v=filter-unify-20261018-0503#bills
+- https://zichao1028.github.io/yuzhi-prototype/?v=filter-unify-20261018-0503#contracts
+- https://zichao1028.github.io/yuzhi-prototype/?v=filter-unify-20261018-0503#workOrders
+- https://zichao1028.github.io/yuzhi-prototype/?v=filter-unify-20261018-0503#ledger
