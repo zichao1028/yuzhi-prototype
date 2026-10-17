@@ -62,3 +62,14 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 .tips{background:#fff7e6;border:1px solid #f0c78a;padding:10px;margin:8px 0;font-size:13px;color:#664}.tips b{display:block;margin-bottom:4px}.sheet-link{display:block;width:100%;background:#fff;border:0;border-top:1px solid #ddd;padding:14px;font-size:16px;font-family:inherit;cursor:pointer}.sheet-link.rec{color:#2169E0;font-weight:600}.sheet-link.cancel{color:#666;margin-top:8px;border-top:8px solid #eee}.settle-bar{bottom:108px}
 /* 移动端房源管理 */
 .room-cards{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}.room-card{display:block;border:1px solid #ddd;border-radius:10px;padding:14px;color:inherit;text-decoration:none;background:#fff;min-width:0}.room-card .row{padding:0 0 8px;border:0}.room-card strong{font-size:20px}.room-card .price{font-weight:600;margin:4px 0 8px}.room-card .helper{margin:6px 0}.filters{display:flex;gap:10px;margin:12px 0;align-items:center}.filters>*{min-width:0;flex:1}.check{display:flex;gap:10px;align-items:center;min-height:44px}.check input{width:18px;height:18px;flex-shrink:0}.card,.ref,.room-card{overflow-wrap:anywhere}
+
+/* confirm5 filters */
+.scroll-tabs{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chipf{display:inline-block;padding:6px 10px;border:1px solid #ddd;border-radius:16px;font-size:12px;background:#fff}
+.chipf.on{background:#1a73e8;color:#fff;border-color:#1a73e8}
+.chipf.stub{opacity:.45}
+.floor-bar{display:flex;gap:6px;overflow-x:auto;padding:6px 0;margin-bottom:6px}
+.filter-panel{background:#f7f8fa;border-radius:10px;padding:10px;margin:8px 0}
+.bill-filters .tight{font-size:12px;white-space:nowrap}
+.check.tight{display:inline-flex;align-items:center;gap:4px}

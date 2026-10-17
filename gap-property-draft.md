@@ -208,3 +208,8 @@
 - `styles.css`：`.room-cards` / `.room-card`（原 chip `.rooms` 已弃用列表）
 - 文档：`/workspace/uploads/docs/biz-房源管理.md`、`biz-续租.md`、`biz-换房.md`、`biz-账单抵扣.md`
 - 发布：`7e3e19d` · `https://zichao1028.github.io/yuzhi-prototype/?v=p0-20261017-1`
+
+
+## confirm5 记录
+- 地址选址 UI 已做；**地图选点+经纬度待后续开发**（见 FOLLOWUPS.md）。
+- 脏房已移除；维修=工单；房号楼栋内唯一；续租/换房抵扣 confirm≠fulfill；房源筛选与账单筛选对齐寓小二（无脏房）。
