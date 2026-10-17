@@ -22,6 +22,17 @@ ok(K.validateReg(s,{phone:'13800000000',rooms:[{r:'301'}],rent:1,start:'2026-11-
 ok(K.validateReg(s,{phone:'13800000000',rooms:[{r:'304'}],rent:0,start:'2027-01-01',end:'2027-01-31',sign:'纸质合同',payN:1,depM:1,dep:0,payRule:{type:'before',days:1}}).some(e=>e.includes('月租金')),'rent required');
 ok(K.allRooms().length>20&&K.searchRooms('lofts B3').length==3,'search unit');
 ok(typeof K.partialPreview==='undefined'&&typeof K.partialApply==='undefined','no partial APIs');
+{
+ const original=JSON.parse(JSON.stringify(K.getBuildings())),t=K.seed();
+ const r=t.contracts.find(c=>!c.term&&!c.voided&&!c.removed).rooms[0].r;K.room(r).locked=true;
+ ok(K.roomStatus(t,r)==='已出租','locked rented displays rented');
+ ok(K.matchRoomFilters(t,r,{status:'锁房'},K.TODAY)&&K.matchRoomFilters(t,r,{status:'已出租'},K.TODAY),'locked rented matches both filters');
+ ok(!K.matchRoomFilters(t,r,{status:'空房'},K.TODAY),'rented excluded from vacant filter');
+ K.room('304').locked=true;
+ ok(K.matchRoomFilters(t,'304',{status:'空房'},K.TODAY)&&!K.vacantRooms(t).some(x=>x.r==='304'),'locked vacant matches 空房 but excluded from vacantRooms');
+ ok(K.roomStatus(t,'missing')==='空房','missing room defaults vacant');
+ K.setBuildings(original);
+}
 // swap single room core
 {const t=K.seed();const ls=t.contracts.find(c=>c.who=='李四');const r=K.swapApply(t,ls.id,'2026-10-17','304','2027-10-16',1600,'房东','2026-10-17 12:00');
  ok(ls.term&&r.newContract.rooms[0].r=='304'&&r.newContract.rent==1600&&r.newContract.start=='2026-10-18','swap core');}
@@ -85,25 +96,25 @@ for(const dep of [1000,2500,0]){
  const nc=K.renewApply(t,c.id,'2028-02-28',1500,1500,'测');
  ok(nc.start>'2026-10-17'&&!nc.pendingOffset.fulfilled&&!c.term,'renew future only arranges');
  ok(K.fulfillPendingRenewals(t,'2027-03-01').includes(nc.id)&&c.term&&nc.pendingOffset.fulfilled,'renew fulfill on start day');
- const w=K.createWorkOrder(t,'304','水管漏水');ok(K.roomStatus(t,'304')==='维修'&&w.status==='待处理','work order → 维修');
- K.setWorkOrderStatus(t,w.id,'已完成');ok(K.roomStatus(t,'304')==='空房可租','work order done clears repair');
- ok(K.matchRoomFilters(t,'304',{status:'空房可租'},K.TODAY),'filter 空房可租');
+ const w=K.createWorkOrder(t,'304','水管漏水');ok(K.roomStatus(t,'304')==='空房'&&K.roomBizFlags(t,'304',K.TODAY).includes('维修')&&w.status==='待处理','work order → 维修');
+ K.setWorkOrderStatus(t,w.id,'已完成');ok(K.roomStatus(t,'304')==='空房'&&!K.roomBizFlags(t,'304',K.TODAY).includes('维修'),'work order done clears repair');
+ ok(K.matchRoomFilters(t,'304',{status:'空房'},K.TODAY),'filter 空房');
 }
 // gap 1–8 core regression
 {
  const original=JSON.parse(JSON.stringify(K.getBuildings())),t=K.seed();
  t.contracts[0].pendingApprove=true;ok(!K.roomBizFlags(t,'301',K.TODAY).includes('合同待审批'),'approval residue removed');
- const complaint=K.createWorkOrder(t,{type:'投诉',r:'304',desc:'噪声'});ok(!K.room('304').repair&&K.roomStatus(t,'304')==='空房可租','complaint does not repair');
+ const complaint=K.createWorkOrder(t,{type:'投诉',r:'304',desc:'噪声'});ok(!K.room('304').repair&&K.roomStatus(t,'304')==='空房','complaint does not repair');
  K.WO_TYPES.forEach(type=>{const w=K.createWorkOrder(t,{type,desc:'测试'});K.setWorkOrderStatus(t,w.id,'已挂起');ok(K.openWorkOrders(t).some(x=>x.id===w.id),'suspended open '+type);K.setWorkOrderStatus(t,w.id,'已关闭');ok(!K.openWorkOrders(t).some(x=>x.id===w.id),'closed excluded '+type)});
  const w=K.createWorkOrder(t,'304','维修');ok(K.room('304').repair,'repair flips');K.setWorkOrderStatus(t,w.id,'已关闭');ok(!K.room('304').repair,'repair closes despite complaint');
- const b=K.createBooking(t,{r:'304',who:'预定人',phone:'13800001111'});ok(K.roomBizFlags(t,'304',K.TODAY).includes('已预定')&&K.roomStatus(t,'304')==='空房可租','booking flag only');
+ const b=K.createBooking(t,{r:'304',who:'预定人',phone:'13800001111'});ok(K.roomBizFlags(t,'304',K.TODAY).includes('已预定')&&K.roomStatus(t,'304')==='空房','booking flag only');
  let rejected=false;try{K.createBooking(t,{r:'304',who:'重复',phone:'13800001111'})}catch(e){rejected=true}ok(rejected,'duplicate booking blocked');
  const f={rooms:[{r:'304'}],phone:'13800001111',rent:1000,start:'2026-11-01',end:'2026-12-31',sign:'纸质合同',payN:1,depM:1,dep:1000,payRule:{type:'before',days:7}};
  ok(K.validateReg(t,f).some(e=>e.includes('预定')),'booking blocks registration');const pre=K.convertBooking(t,b.id);ok(pre.who==='预定人'&&b.status==='有效','conversion leaves booking until success');
  const c=K.register(t,{...f,bookingId:b.id});ok(b.status==='已转登记'&&b.cid===c.id,'successful conversion');
  const b2=K.createBooking(t,{r:'307',who:'取消',phone:'13800001111'});K.cancelBooking(t,b2.id);ok(b2.status==='已取消','cancel booking');
  const paid=t.bills.find(b=>K.billPaid(b)>0),cash=K.billPaid(paid);K.voidBill(t,paid.id);ok(K.billStatus(paid)==='已作废'&&K.billPaid(paid)===cash,'void keeps payments');
- ok(K.vacantRooms(t).length===K.allRooms().filter(x=>K.roomStatus(t,x.r)==='空房可租').length,'vacant count');
+ ok(K.vacantRooms(t).length===K.allRooms().filter(x=>K.roomStatus(t,x.r)==='空房').length,'vacant count');
  K.batchPrice(t,['307','B101'],{monthly:1234,depMode:'months',dep:2});ok(K.room('307').price.monthly===1234&&K.room('B101').price.dep===2,'batch pricing');
  const oc=K.createOwnerContract(t,{building:Object.keys(K.getBuildings())[0],who:'业主',phone:'13800001111',start:'2026-01-01',end:'2027-01-01'});ok(oc.status==='生效中','owner create');K.terminateOwnerContract(t,oc.id);ok(oc.status==='已终止','owner terminate');
  const inv=K.createInvoice(t,{cid:c.id,title:'个人',amount:100});ok(inv.status==='待开','invoice create');const l=K.addLedgerNote(t,{dir:'out',name:'维护',amount:20,date:K.TODAY});ok(l.net===-20&&l.method==='线下记账','manual ledger');
@@ -155,7 +166,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  // F1 register contract-level rent
  await G('room?r=304');await clk('#room-register');await pg.waitForSelector('#f-q');
  ok((await pg.$$('.chip')).length==1,'room preselected');
- await typ('#f-q','30');ok((await pg.$eval('.sr[data-r="304"]',e=>e.innerText)).includes('空房可租'),'空房可租');
+ await typ('#f-q','30');ok((await pg.$eval('.sr[data-r="304"]',e=>e.innerText)).includes('空房'),'空房');
  await pg.click('.sr[data-r="307"]');ok((await pg.$$('.chip')).length==2,'added 307');
  await clk('.sign:nth-child(2)');await typ('#f-phone','13811112222');await typ('#f-who','钱八');await typ('#f-idType','身份证');await typ('#f-idNo','310101199909099999');
  await typ('#f-start','2026-10-20');await typ('#f-end','2026-10-01');await typ('#f-payN','1');await typ('#f-depM','1');
@@ -187,7 +198,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='全部|待收款|已完成','receipt exact tabs');
  await G('bills?t=全部');ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
  await G('rooms');ok(!!(await pg.$('#btn-room-filter'))||(await txt()).includes('筛选'),'room filter entry');
- await G('rooms?panel=1');ok((await txt()).includes('空房不可租')&&(await txt()).includes('业务状态')&&!(await txt()).includes('污房'),'room filter panel statuses');
+ await G('rooms?panel=1');ok((await txt()).includes('空房')&&(await txt()).includes('业务状态')&&!(await txt()).includes('污房'),'room filter panel statuses');
  await G('me');ok((await txt()).includes('公寓资料')&&(await txt()).includes('设置')&&(await txt()).includes('操作日志'),'me hubs');
  await G('settings');ok((await txt()).includes('财务科目'),'settings hub');await G('settingsLedger');await clk('#save-settings');await pg.reload();await pg.waitForSelector('#save-settings');ok((await st()).settings.ledger.defaultMethod==='线下收款','settings persisted');
  await G('intentSigns');await clk('a[href^="#intentSign?id="]');ok(!!(await pg.$('#sign-intent')),'intent clickable');await clk('#sign-intent');ok((await txt()).includes('已签署'),'intent signed UI');
@@ -274,16 +285,16 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok(!(await txt()).includes('地址未填写'),'no address helper');
  ok(await pg.$$eval('.building-sec',bs=>bs.every(b=>!b.querySelector(':scope > .helper'))),'no building address line');
  ok(await pg.$eval('.room-filter-row',e=>e.textContent.replace(/\s|▾/g,'')==='独栋状态筛选'),'mobile dropdown labels');
- ok(await pg.$$eval('.room-quick',cs=>cs.map(c=>c.textContent).join('|')==='空房可租|即将离店|今日到期|签约中|有欠款|维修'),'mobile quick filter labels');
- await clk('#btn-room-status');ok((await pg.$$('#room-status-menu button')).length===8,'status dropdown options');
+ ok(await pg.$$eval('.room-quick',cs=>cs.map(c=>c.textContent).join('|')==='空房|即将到期|今日到期|签约中|有欠款|维修'),'mobile quick filter labels');
+ await clk('#btn-room-status');ok(await pg.$$eval('#room-status-menu button',bs=>bs.map(b=>b.textContent).join('|')==='全部|空房|已出租|锁房'),'status dropdown options');
  await pg.evaluate(()=>[...document.querySelectorAll('#room-status-menu button')].find(b=>b.textContent==='已出租').click());await pg.waitForSelector('.room-card');
  ok(await pg.$$eval('.room-card',cs=>cs.every(c=>window.CORE.roomStatus(window.__state(),c.dataset.room)==='已出租')),'status dropdown filters rooms');
  await G('rooms');await clk('#btn-room-filter');ok(!!(await pg.$('#room-filter-panel')),'filter opens existing panel');
  await G('rooms');
- for(const label of ['空房可租','即将离店','今日到期','签约中','有欠款','维修']){
+ for(const label of ['空房','即将到期','今日到期','签约中','有欠款','维修']){
   const selector='.room-quick[data-filter="'+label+'"]';await clk(selector);
   ok(await pg.$eval(selector,e=>e.getAttribute('aria-pressed')==='true'),'quick enabled '+label);
-  ok(await pg.evaluate(label=>{const q=Object.fromEntries(new URLSearchParams(location.hash.split('?')[1]));const f={status:q.status,biz:(q.biz||'').split('|').filter(Boolean)};return (label==='空房可租'||label==='维修'?q.status===label:f.biz.includes(label))&&[...document.querySelectorAll('.room-card')].every(c=>window.CORE.matchRoomFilters(window.__state(),c.dataset.room,f,window.CORE.TODAY))},label),'quick filters rooms '+label);
+  ok(await pg.evaluate(label=>{const q=Object.fromEntries(new URLSearchParams(location.hash.split('?')[1]));const f={status:q.status,biz:(q.biz||'').split('|').filter(Boolean)};return (label==='空房'?q.status===label:f.biz.includes(label))&&[...document.querySelectorAll('.room-card')].every(c=>window.CORE.matchRoomFilters(window.__state(),c.dataset.room,f,window.CORE.TODAY))},label),'quick filters rooms '+label);
   await clk(selector);ok(await pg.$eval(selector,e=>e.getAttribute('aria-pressed')==='false'),'quick disabled '+label);
  }
  ok(await pg.$$eval('.floor-hd',hs=>hs.every(h=>/^\d+层$/.test(h.textContent))),'floor headings use N层');
@@ -330,5 +341,5 @@ console.log('seed checks',pass,'pass',fail,'fail');
  for(const h of ['workOrders','workOrderNew','vacant','bookings','bookingNew','batchPrice','batchEdit','ownerContracts','ownerContractNew','invoices','ledgerNote','meterAccount','home','contracts','bills','bills?side=out','rooms','room?r=301','settlement?id='+S.settlements[0].id]){await G(h);ok((await txt()).length>20,'render '+h)}
  await G('home');ok(!!(await pg.$('#home-fab')),'home FAB');await clk('#home-fab');ok((await txt()).includes('合同多房')&&(await txt()).includes('录户号'),'FAB menu');
  ok(!(await txt()).match(/H\d{3}/),'no H codes');
- await G('rooms');await pg.screenshot({path:'/tmp/rooms-mobile-after.png',fullPage:true});
+ await G('rooms');await pg.screenshot({path:require('path').join(__dirname,'rooms-mobile-after.png'),fullPage:true});
  console.log('total',pass,'pass',fail,'fail');await br.close();process.exit(fail?1:0)})();

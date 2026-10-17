@@ -16,20 +16,20 @@ function editRoom(st,r,patch){const x=room(r);if(!x)throw Error('房间不存在
  if(nr!==r)st.contracts.forEach(c=>{c.rooms.forEach(y=>{if(y.r===r)y.r=nr});if(c.occupants&&c.occupants[r]){c.occupants[nr]=c.occupants[r];delete c.occupants[r]}});Object.assign(x,patch,{r:nr});return x}
 function openWorkOrders(st,r){return (st.workOrders||[]).filter(w=>(!r||w.r===r)&&!['已完成','已关闭'].includes(w.status))}
 function roomIncomplete(r){const x=room(r);return !x||!x.price}
-function roomStatus(st,r){const x=room(r);if(!x)return '待完善';if(roomBusy(st,r))return '已出租';if(x.locked)return '锁房';if(openWorkOrders(st,r).some(w=>['报修','设备维保'].includes(w.type||'报修'))||x.repair)return '维修';const ownerOut=st.contracts.some(c=>c.term&&(c.term.afterStatus||'').includes('业主退房')&&c.rooms.some(y=>y.r===r));if(ownerOut&&!roomBusy(st,r))return '业主退房';if(x.unrentable)return '空房不可租';return '空房可租'}
-function roomBizFlags(st,r,today){const flags=[];if(bookingsOf(st,r).some(b=>b.status==='有效'))flags.push('已预定');const cs=st.contracts.filter(c=>!c.removed&&!c.voided&&c.rooms.some(y=>y.r===r&&!y.out));const c=cs[0];if(!c){const term=st.contracts.filter(c=>c.term&&!c.voided&&c.rooms.some(y=>y.r===r)).sort((a,b)=>(b.term.X||'').localeCompare(a.term.X||''))[0];if(term&&term.term&&term.term.settled===false)flags.push('退租未结账');return flags}
+function roomStatus(st,r){const x=room(r);if(!x)return '空房';if(roomBusy(st,r))return '已出租';if(x.locked)return '锁房';return '空房'}
+function roomBizFlags(st,r,today){const flags=[];if(openWorkOrders(st,r).some(w=>['报修','设备维保'].includes(w.type||'报修'))||room(r)?.repair)flags.push('维修');if(bookingsOf(st,r).some(b=>b.status==='有效'))flags.push('已预定');const cs=st.contracts.filter(c=>!c.removed&&!c.voided&&c.rooms.some(y=>y.r===r&&!y.out));const c=cs[0];if(!c){const term=st.contracts.filter(c=>c.term&&!c.voided&&c.rooms.some(y=>y.r===r)).sort((a,b)=>(b.term.X||'').localeCompare(a.term.X||''))[0];if(term&&term.term&&term.term.settled===false)flags.push('退租未结账');return flags}
  if(c.sign==='电子合同'&&c.pendingSign)flags.push('签约中');
  if(today<c.start)flags.push('将搬入');
  else if(!c.term)flags.push('在租中');
  if(c.end===today)flags.push('今日到期');
  if(c.end<today&&!c.term)flags.push('到期未退房');
- const daysLeft=days(today,c.end);if(daysLeft>=0&&daysLeft<=7&&c.end>today)flags.push('即将离店');
+ const daysLeft=days(today,c.end);if(daysLeft>=0&&daysLeft<=7&&c.end>today)flags.push('即将到期');
  const bl=billsOf(st,c.id);if(bl.some(b=>billStatus(b)==='待收'))flags.push('待收款');
  if(bl.some(b=>odays(b,today)>0))flags.push('有欠款');
  if(c.term&&c.term.settled===false)flags.push('退租未结账');
  if(c.reserved)flags.push('已预定');
  return flags}
-function matchRoomFilters(st,r,f,today){f=f||{};const stt=roomStatus(st,r);const x=room(r);if(f.status&&f.status!=='全部'){if(f.status==='待完善'){if(!roomIncomplete(r)||roomBusy(st,r))return false}else if(stt!==f.status)return false}if(f.floor&&String(x.floor)!==String(f.floor))return false;if(f.biz&&f.biz.length){const flags=roomBizFlags(st,r,today);if(!f.biz.every(b=>flags.includes(b)))return false}
+function matchRoomFilters(st,r,f,today){f=f||{};const x=room(r);if(f.status==='空房'&&roomBusy(st,r))return false;if(f.status==='已出租'&&!roomBusy(st,r))return false;if(f.status==='锁房'&&!x?.locked)return false;if(f.floor&&String(x.floor)!==String(f.floor))return false;if(f.biz&&f.biz.length){const flags=roomBizFlags(st,r,today);if(!f.biz.every(b=>flags.includes(b)))return false}
  if(f.q){const ks=String(f.q).toLowerCase().split(/\s+/).filter(Boolean);const hay=(bldOf(r)+' '+r+' '+(BUILDINGS[bldOf(r)]?.name||'')).toLowerCase();if(!ks.every(k=>hay.includes(k)))return false}
  if(f.minPrice!=null&&f.minPrice!==''&&(!(x.price)||x.price.monthly<+f.minPrice))return false;if(f.maxPrice!=null&&f.maxPrice!==''&&(!(x.price)||x.price.monthly>+f.maxPrice))return false;
  if(f.orient&&f.orient!=='全部'&&(x.orient||'')!==f.orient)return false;
@@ -322,7 +322,7 @@ function bookingsOf(st,r){return (st.bookings||[]).filter(b=>!r||b.r===r)}
 function createBooking(st,o){const x=room(o.r);if(!x||x.locked||roomBusy(st,o.r)||bookingsOf(st,o.r).some(b=>b.status==='有效'))throw Error('房间不存在、已锁定、已出租或已有有效预定');if(!String(o.who||'').trim()||!/^1\d{10}$/.test(o.phone||''))throw Error('请填写姓名与11位手机号');if(o.deposit!==undefined&&(!Number.isFinite(+o.deposit)||+o.deposit<0))throw Error('预定金须为非负金额');const b={...o,deposit:+o.deposit||0,id:nid(st,'bk'),status:'有效',created:o.at||TODAY,by:o.by||'房东'};(st.bookings||(st.bookings=[])).push(b);return b}
 function cancelBooking(st,id,by){const b=bookingsOf(st).find(b=>b.id===id);if(!b||b.status!=='有效')throw Error('预定无效');b.status='已取消';b.updatedBy=by||'房东';return b}
 function convertBooking(st,id){const b=bookingsOf(st).find(b=>b.id===id);if(!b||b.status!=='有效')throw Error('预定无效');return {r:b.r,who:b.who,phone:b.phone,bookingId:b.id}}
-function vacantRooms(st){return allRooms().filter(x=>roomStatus(st,x.r)==='空房可租')}
+function vacantRooms(st){return allRooms().filter(x=>roomStatus(st,x.r)==='空房')}
 function batchPrice(st,rs,price){if(!rs.length)throw Error('请选择房间');rs.forEach(r=>{if(!room(r))throw Error('房间不存在')});const p={monthly:+price.monthly,depMode:price.depMode,dep:+price.dep};if(!(p.monthly>0)||!Number.isFinite(p.monthly)||!Number.isFinite(p.dep)||p.dep<0||!['months','amount'].includes(p.depMode)||(p.depMode==='months'&&!Number.isInteger(p.dep)))throw Error('价格或押金无效');return rs.map(r=>editRoom(st,r,{price:{...p}}))}
 function voidBill(st,id,by,reason){const b=st.bills.find(b=>b.id===id);if(!b||b.excluded)throw Error('账单不存在或已作废');b.excluded=true;b.done=true;b.voidedAt=TODAY;log(st,b.cid,TODAY,by,'作废账单',reason||'作废账单',[]);return b}
 function createInvoice(st,o){if(!C(st,o.cid)||!String(o.title||'').trim()||!Number.isFinite(+o.amount)||!(+o.amount>0))throw Error('请选择合同并填写抬头、有效金额');if(o.bid&&!st.bills.some(b=>b.id===o.bid&&b.cid===o.cid&&billPaid(b)>0))throw Error('请选择本合同已收款账单');const i={...o,amount:r2(+o.amount),id:nid(st,'inv'),status:'待开',created:TODAY};(st.invoices||(st.invoices=[])).push(i);return i}
