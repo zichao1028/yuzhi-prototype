@@ -77,13 +77,27 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 /* gap-fill：沿用低保真卡片与底部操作样式 */
 .gap-stats{border:1px solid #ddd;padding:10px;margin:10px 0}.tabs a{white-space:nowrap;padding:8px;color:inherit}.tabs a.act{font-weight:bold;border-bottom:2px solid #333}#home-fab{font-size:28px}.sheet .entry{margin:6px 0;padding:10px}.gap-stats .row{padding:7px 0}
 
-/* 独栋：每栋楼层筛选与楼层段 */
+/* 独栋：每栋楼层筛选与楼层段 · 房态卡对齐寓小二（移动端参考） */
 .building-sec > .floor-bar{border-bottom:1px solid #ddd;margin:8px 0;flex-wrap:nowrap}
 .building-sec > .floor-bar .chipf{flex-shrink:0;cursor:pointer}
 .floor-sec{margin-top:16px}
 .floor-hd{font-size:13px;line-height:24px;color:#666;border-bottom:1px solid #eee;padding-bottom:4px}
-.floor-sec .room-cards{margin-top:8px;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
-.floor-sec .room-card{border-radius:2px;padding:10px;border-left-width:3px}
+.floor-sec .room-cards{margin-top:8px;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.floor-sec .room-card{position:relative;border-radius:2px;padding:8px 10px 8px 12px;border:1px solid transparent;border-left-width:3px;min-height:88px}
+.room-card .hd{display:flex;align-items:center;justify-content:space-between;padding:0;border:0;margin:0 0 2px}
+.room-card .hd strong{font-size:16px;font-weight:600;color:#333;line-height:22px}
+.room-card .layout{max-width:58%;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+.room-card .mid{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:13px;line-height:22px;color:#333}
+.room-card .mid-l{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.room-card .mid-r{flex-shrink:0;white-space:nowrap}
 .room-card.rented{background:#d5f3f1;border-left-color:#15a99c}
 .room-card.vacant{background:#fff0f1;border-left-color:#d74760}
-.room-card .meta,.room-card .foot{font-size:12px;line-height:20px;color:#666}
+.room-card.unrentable{background:#fff6ed;border-left-color:#ff963e}
+.room-card .foot{display:flex;align-items:center;gap:3px;margin-top:4px;min-height:16px}
+.room-card .rbadges{display:inline-flex;gap:3px;flex-shrink:0}
+.room-card .rb{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font-size:10px;font-style:normal;font-weight:600;color:#fff;border-radius:2px;line-height:1}
+.room-card .rb.arrears,.room-card .rb.due,.room-card .rb.settle{background:#e54d42}
+.room-card .rb.book{background:#f0a020}
+.room-card .rb.sign{background:#3b82f6}
+.room-card .rb.lock,.room-card .rb.repair{background:#6b7280}
+@media (min-width:720px){.floor-sec .room-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}}

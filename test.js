@@ -258,8 +258,11 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok((await pg.$$('.floor-sec')).length>0&&(await pg.$$('.floor-hd')).length>0,'rooms floor sections and headings');
  ok(await pg.$$eval('.building-sec',bs=>bs.every(b=>b.querySelector(':scope > h3')&&b.querySelector(':scope > .floor-bar')&&b.querySelector('.floor-sec > .floor-hd'))),'each building owns floor strip and floor sections');
  ok(await pg.$$eval('.floor-hd',hs=>hs.every(h=>/^\d+层$/.test(h.textContent))),'floor headings use N层');
- ok(await pg.$$eval('.room-card',cs=>cs.every(c=>!/到期\s*\d{4}/.test(c.textContent)&&!/\d+楼/.test(c.textContent))),'room cards omit expiry label and floor label');
- ok(await pg.$$eval('.room-card',cs=>cs.some(c=>/退:\s*\d{4}-\d{2}-\d{2}/.test(c.textContent))&&cs.some(c=>/空置\d+天/.test(c.textContent))),'room cards show rented end and vacant days');
+ ok(await pg.$$eval('.room-card',cs=>cs.every(c=>!/退:|到期\s*\d{4}|\d+楼/.test(c.textContent))),'room cards omit checkout dates, expiry dates and floor labels');
+ ok(await pg.$$eval('.room-card.vacant .mid-l',cs=>cs.some(c=>/^空\d+天$/.test(c.textContent))),'vacant cards show 空N天');
+ ok(await pg.$$eval('.room-card.rented',cs=>cs.length>0&&cs.every(card=>{const c=window.__state().contracts.find(c=>!c.term&&!c.voided&&!c.removed&&c.rooms.some(r=>r.r===card.dataset.room&&!r.out));return card.querySelector('.mid-l').textContent===(c.who||c.phone||'租客')&&/^¥\d+(\.\d{2})?\/月$/.test(card.querySelector('.mid-r').textContent)})),'rented cards show tenant in mid left and price in mid right');
+ ok(await pg.$$eval('.room-card',cs=>cs.every(c=>c.querySelector('.foot')&&c.querySelector('.hd strong')&&c.querySelector('.hd .layout')&&c.querySelector('.mid')&&[...c.querySelector('.foot').children].every(e=>e.matches('.rbadges')))),'room cards have header, mid row and badges-only foot');
+ ok(await pg.$$eval('.room-card',cs=>cs.some(c=>c.classList.contains('rented'))&&cs.some(c=>c.classList.contains('vacant'))),'room cards tone rented/vacant');
 
  await G('room?r=T0101');ok((await txt()).includes('合同列表')&&(await txt()).includes('暂无合同'),'room contract empty state');
  await G('roomPrice?r=T0101');await typ('#rp-monthly','1350');await typ('#rp-mode','amount');await typ('#rp-dep','600');await clk('#save-price');
@@ -300,4 +303,5 @@ console.log('seed checks',pass,'pass',fail,'fail');
  for(const h of ['workOrders','workOrderNew','vacant','bookings','bookingNew','batchPrice','batchEdit','ownerContracts','ownerContractNew','invoices','ledgerNote','meterAccount','home','contracts','bills','bills?side=out','rooms','room?r=301','settlement?id='+S.settlements[0].id]){await G(h);ok((await txt()).length>20,'render '+h)}
  await G('home');ok(!!(await pg.$('#home-fab')),'home FAB');await clk('#home-fab');ok((await txt()).includes('合同多房')&&(await txt()).includes('录户号'),'FAB menu');
  ok(!(await txt()).match(/H\d{3}/),'no H codes');
+ await G('rooms');await pg.screenshot({path:'/tmp/rooms-mobile-after.png',fullPage:true});
  console.log('total',pass,'pass',fail,'fail');await br.close();process.exit(fail?1:0)})();
