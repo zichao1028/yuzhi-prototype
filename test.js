@@ -2,6 +2,9 @@
 const K=require('./core.js');const base=process.argv[2]||'http://localhost:8080/';let pass=0,fail=0;const ok=(c,m)=>{if(c)pass++;else{fail++;console.log('FAIL',m)}};
 // ---- ① seed ----
 const s=K.seed();
+for(const status of ['', '全部'])ok(K.matchRoomFilters(s,'304',{status},K.TODAY),'legacy and empty status no filter');
+const building=K.bldOf('304');ok(K.matchRoomFilters(s,'304',{bld:building},K.TODAY)&&!K.matchRoomFilters(s,'304',{bld:'不存在'},K.TODAY),'building match');
+ok(K.matchRoomFilters(s,'304',{bld:'全部楼栋'},K.TODAY),'legacy building no filter');
 ok(s.v===5,'state v5');
 for(const c of s.contracts){
  ok(typeof c.rent==='number'&&c.rent>0,'contract rent '+c.who);
@@ -147,6 +150,27 @@ console.log('seed checks',pass,'pass',fail,'fail');
  K.voidBill(t,b.id);ok(b.voidedAt===K.TODAY&&!K.billStatusMatch(b,'全部')&&!K.billStatusMatch(b,'已完成'),'void receipt excluded from active filters');
  for(const p of [{amount:100,paid:0,status:'待付款'},{amount:100,paid:20,status:'部分付款'},{amount:100,paid:0,status:'付款中'},{amount:100,paid:100,status:'待付款'}])ok(K.payableStatus(p)===(p.paid===100?'已完成':p.paid>0||p.status==='付款中'?'付款中':'待付款'),'payable matrix '+p.status);
 }
+// Render and exercise filter state transitions without a browser.
+{
+const vm=require('vm'),fs=require('fs');
+const location={hash:'#rooms'},document={body:{classList:{remove(){}},innerHTML:''},getElementById(){return null}},storage={};
+const ctx={CORE:require(process.cwd()+'/core.js'),location,document,localStorage:{getItem:k=>storage[k],setItem:(k,v)=>storage[k]=v},URLSearchParams,console};ctx.window=ctx;ctx.addEventListener=()=>{};ctx.scrollTo=()=>{};vm.createContext(ctx);vm.runInContext(fs.readFileSync('app.js','utf8'),ctx);
+const check=(v,m)=>ok(v,'VM '+m),html=()=>document.body.innerHTML;
+for(const [page,keys] of [['rooms',['bld']],['bills',['bld','typ','more']],['bills?side=out',['bld','more']],['contracts',['t']],['workOrders',['status','type']],['ledger',['cid']]]){
+ location.hash='#'+page;ctx.render();
+ for(const key of keys){ctx.openListFilter(key);check((html().match(/<section class="filter-dd-sheet"/g)||[]).length===1,'single sheet');check(html().includes('重置')&&html().includes('确认'),'footer');if(key!=='more'){const value=html().match(/data-value="([^"]*)"/)[1];ctx.setListFilter(key,value);check(!location.hash.includes(key+'='),'draft');ctx.closeListFilter();ctx.openListFilter(key);check(!html().includes('aria-pressed="true"'),'discard');ctx.setListFilter(key,value);ctx.confirmListFilter();ctx.render();check(new URLSearchParams(location.hash.split('?')[1]).get(key)===value,'apply');ctx.openListFilter(key);ctx.resetListFilter();ctx.confirmListFilter();ctx.render();check(!new URLSearchParams(location.hash.split('?')[1]).get(key),'reset')}else{ctx.listFilterInput('ov',{type:'checkbox',checked:true});ctx.listFilterInput('dueFrom',{type:'date',value:'2026-01-01'});ctx.confirmListFilter();ctx.render();check(location.hash.includes('ov=1'),'overdue confirm');ctx.openListFilter(key);ctx.resetListFilter();ctx.confirmListFilter();ctx.render();check(!new URLSearchParams(location.hash.split('?')[1]).get('ov'),'reset overdue')}
+ }
+}
+location.hash='#rooms';ctx.render();ctx.openListFilter('bld');
+check(Object.keys(ctx.CORE.getBuildings()).every(b=>html().includes('data-value="'+b+'"')),'all buildings listed');
+const selectedBuilding=Object.keys(ctx.CORE.getBuildings())[0];ctx.setListFilter('bld',selectedBuilding);ctx.confirmListFilter();ctx.render();
+check([...html().matchAll(/data-room="([^"]*)"/g)].every(m=>ctx.CORE.bldOf(m[1])===selectedBuilding),'building limits room cards');
+location.hash='#workOrders';ctx.render();ctx.openListFilter('status');ctx.setListFilter('status',ctx.CORE.WO_STATUSES[0]);ctx.openListFilter('type');
+check((html().match(/<section class="filter-dd-sheet"/g)||[]).length===1&&!html().includes('aria-pressed="true"'),'work order entries exclusive');
+location.hash='#rooms';ctx.render();ctx.openRoomSheet('statusMenu');ctx.render();ctx.setRoomDraft('status','空房');ctx.setRoomDraft('status','空房');check(ctx._roomFilterDraft.status==='','deselect');ctx.setRoomDraft('biz','维修');ctx.setRoomDraft('biz','有欠款');check(ctx._roomFilterDraft.biz.length===2,'multi biz');ctx.openListFilter('bld');check(!html().includes('id="room-status-sheet"'),'exclusive building');check(html().includes('id="rooms-filter-sheet"'),'building opened');ctx.openRoomSheet('statusMenu');ctx.render();check(!html().includes('id="rooms-filter-sheet"'),'exclusive status');ctx.resetRoomDraft();ctx.confirmRoomDraft();ctx.render();check(!location.hash.includes('status=%E5%85%A8%E9%83%A8'),'no all URL');
+
+}
+console.log('core + VM checks',pass,'pass',fail,'fail');
 (async()=>{const pp=require('/tmp/pt/node_modules/puppeteer-core');const br=await pp.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const pg=await br.newPage();await pg.setViewport({width:390,height:844});
  pg.on('dialog',async d=>{if(d.type()=='prompt')await d.accept(d.defaultValue()||'13900009999');else await d.accept()});pg.on('pageerror',e=>ok(0,'pageerror '+e.message));
  const G=async h=>{await pg.goto(base+'#'+h);await pg.waitForSelector('.nav')};const st=()=>pg.evaluate(()=>window.__state());const txt=()=>pg.evaluate(()=>document.body.innerText);
@@ -193,7 +217,10 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await clk('#to-preview');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('租期冲突'),'overlap blocked');
  // bills list style + contract tab same billTitle
  await G('bills?t=全部');ok((await txt()).includes('总金额（元）')&&!(await txt()).includes('批量'),'bills summary no batch');
- ok((await txt()).includes('已收（元）')&&(await txt()).includes('作废账单')&&(await txt()).includes('仅逾期'),'bills tabs mirror yuxiaoer');
+ ok((await txt()).includes('已收（元）')&&(await txt()).includes('作废账单')&&!!(await pg.$('#btn-bills-more')),'bills tabs mirror yuxiaoer');
+ await clk('#btn-bills-more');
+ ok(await pg.$eval('.filter-dd-sheet',e=>e.innerText.includes('仅逾期')),'bills overdue option in filter sheet');
+ await clk('.filter-dd-mask');
  await G('bills?t=已完成');ok((await pg.$$eval('.bc .tag',es=>es.every(e=>e.textContent==='已完成'))),'completed filter only completed');
  ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='全部|待收款|已完成','receipt exact tabs');
  await G('bills?t=全部');ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
@@ -277,6 +304,18 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await typ('#bld-name','测试独栋A');await typ('#bld-prefix','T');await clk('#bld-generate');await clk('#do-add-building');await pg.waitForSelector('#btn-add-building');
  S=await st();ok(S.buildings['测试独栋A']&&S.buildings['测试独栋A'].rooms.some(x=>x.r==='T0101'),'building added');
 
+ // Unified dropdown drafts, reset, confirmation, and mutual exclusion.
+ for(const [path,keys] of [['rooms',['bld']],['bills',['bld','typ','more']],['bills?side=out',['bld','more']],['contracts',['t']],['workOrders',['status','type']],['ledger',['cid']]]){
+  await G(path);const page=path.split('?')[0];
+  ok(!(await pg.$('select:not([disabled])')),'no native list filter '+path);
+  for(const key of keys){
+   await clk('#btn-'+page+'-'+key);
+   ok((await pg.$$('.filter-dd-sheet')).length===1,'one common sheet '+path+' '+key);
+   const chip=await pg.$('.filter-dd-sheet [data-value]');
+   if(chip){const value=await chip.evaluate(e=>e.dataset.value);await chip.click();ok(await pg.evaluate(k=>!new URLSearchParams(location.hash.split('?')[1]).get(k),key),'draft pending '+page+' '+key);await clk('.filter-dd-mask');await clk('#btn-'+page+'-'+key);ok(await pg.$$eval('.filter-dd-sheet [aria-pressed="true"]',es=>!es.length),'mask discards '+page+' '+key);await clk('.filter-dd-sheet [data-value]');await clk('#'+page+'-filter-sheet-confirm');ok(await pg.evaluate(([k,v])=>new URLSearchParams(location.hash.split('?')[1]).get(k)===v,[key,value]),'confirm '+page+' '+key);await clk('#btn-'+page+'-'+key);await clk('#'+page+'-filter-sheet-reset');await clk('#'+page+'-filter-sheet-confirm');ok(await pg.evaluate(k=>!new URLSearchParams(location.hash.split('?')[1]).get(k),key),'reset '+page+' '+key)}else{await clk('.filter-dd-mask')}
+  }
+ }
+ await G('rooms');await clk('#btn-room-status');await clk('#room-status-sheet [data-value="空房"]');await clk('#room-status-sheet [data-value="空房"]');ok(await pg.evaluate(()=>window._roomFilterDraft.status===''),'status chip deselect');await clk('#btn-rooms-bld');ok((await pg.$$('.filter-dd-sheet')).length===1&&!(await pg.$('#room-status-sheet')),'building replaces status sheet');await clk('.filter-dd-mask');
  // P0 mobile CRUD, price prefill, lock, persistence, filters and ledger
  await G('rooms');ok((await pg.$$('.room-card')).length>20,'room cards not chips');
  ok((await pg.$$('.floor-sec')).length>0&&(await pg.$$('.floor-hd')).length>0,'rooms floor sections and headings');
@@ -284,11 +323,11 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok(!(await pg.$('.floor-bar')),'no floor strip');
  ok(!(await txt()).includes('地址未填写'),'no address helper');
  ok(await pg.$$eval('.building-sec',bs=>bs.every(b=>!b.querySelector(':scope > .helper'))),'no building address line');
- ok(await pg.$eval('.room-filter-row',e=>e.textContent.replace(/\s|▾/g,'')==='独栋状态筛选'),'mobile dropdown labels');
+ ok(await pg.$eval('.room-filter-row',e=>e.textContent.replace(/\s|▾/g,'')==='楼栋状态筛选'),'mobile dropdown labels');
  ok(await pg.$$eval('.room-quick',cs=>cs.map(c=>c.textContent).join('|')==='空房|即将到期|今日到期|签约中|有欠款|维修'),'mobile quick filter labels');
  await clk('#btn-room-status');
  ok(await pg.$$eval('#room-status-sheet .filter-dd-sec-title',es=>es.map(e=>e.textContent).join('|')==='业务状态|房源状态'),'status section order');
- ok(await pg.$$eval('#room-status-sheet [data-section="status"] button',bs=>bs.map(b=>b.textContent).join('|')==='全部|空房|已出租|锁房'),'status dropdown options');
+ ok(await pg.$$eval('#room-status-sheet [data-section="status"] button',bs=>bs.map(b=>b.textContent).join('|')==='空房|已出租|锁房'),'status dropdown options');
  ok(await pg.$$eval('#room-status-sheet [data-section="biz"] button',bs=>bs.map(b=>b.textContent).join('|')==='已预定|签约中|在租中|将搬入|即将到期|今日到期|到期未退房|待收款|有欠款|退租未结账|维修'),'business locked options');
  await clk('#room-status-sheet [data-value="已出租"]');
  ok(await pg.evaluate(()=>!decodeURIComponent(location.hash).includes('status=已出租')&&window._roomFilterDraft.status==='已出租'),'status draft does not apply');
@@ -299,14 +338,14 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await clk('#room-status-sheet-confirm');
  ok(await pg.evaluate(()=>{const biz=new URLSearchParams(location.hash.split('?')[1]).get('biz').split('|');return biz.length===2&&[...document.querySelectorAll('.room-card')].every(c=>window.CORE.matchRoomFilters(window.__state(),c.dataset.room,{biz},window.CORE.TODAY))}),'business confirm URL and rooms');
  await clk('#btn-room-status');await clk('#room-status-sheet-reset');ok(!!(await pg.$('#room-status-sheet')),'reset keeps sheet open');await clk('#room-status-sheet-confirm');
- ok(await pg.evaluate(()=>{const q=new URLSearchParams(location.hash.split('?')[1]);return q.get('status')==='全部'&&!q.get('biz')}),'status reset clears applied filters');
+ ok(await pg.evaluate(()=>{const q=new URLSearchParams(location.hash.split('?')[1]);return !q.get('status')&&!q.get('biz')}),'status reset clears applied filters');
  await clk('#btn-room-status');await clk('#room-status-sheet [data-value="维修"]');await clk('.filter-dd-mask');await clk('#btn-room-status');
  ok(await pg.evaluate(()=>window._roomFilterDraft.biz.length===0),'mask discards draft');
  await clk('#room-status-sheet [data-value="维修"]');await clk('#btn-room-status');await clk('#btn-room-status');
  ok(await pg.evaluate(()=>window._roomFilterDraft.biz.length===0),'trigger discards draft');
  await clk('#btn-room-filter');ok(!!(await pg.$('#room-filter-sheet'))&&!(await pg.$('#room-status-sheet')),'filter opens exclusively');
  ok(await pg.$eval('#room-filter-sheet',e=>e.textContent.includes('定价下限')&&e.textContent.includes('朝向')&&!e.textContent.includes('房源状态')&&!e.textContent.includes('业务状态')),'more filter content');
- await typ('#room-filter-minPrice','1000');await pg.select('#room-filter-orient','南');
+ await typ('#room-filter-minPrice','1000');await clk('#room-filter-orient-南');
  ok(await pg.evaluate(()=>!new URLSearchParams(location.hash.split('?')[1]).get('minPrice')),'more draft does not apply');await clk('#room-filter-sheet-confirm');
  ok(await pg.evaluate(()=>{const q=new URLSearchParams(location.hash.split('?')[1]);return q.get('minPrice')==='1000'&&q.get('orient')==='南'&&!q.get('panel')}),'more confirm applies');
  await clk('#btn-room-filter');await clk('#room-filter-sheet-reset');await clk('#room-filter-sheet-confirm');

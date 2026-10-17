@@ -29,7 +29,7 @@ function roomBizFlags(st,r,today){const flags=[];if(openWorkOrders(st,r).some(w=
  if(c.term&&c.term.settled===false)flags.push('退租未结账');
  if(c.reserved)flags.push('已预定');
  return flags}
-function matchRoomFilters(st,r,f,today){f=f||{};const x=room(r);if(f.status==='空房'&&roomBusy(st,r))return false;if(f.status==='已出租'&&!roomBusy(st,r))return false;if(f.status==='锁房'&&!x?.locked)return false;if(f.floor&&String(x.floor)!==String(f.floor))return false;if(f.biz&&f.biz.length){const flags=roomBizFlags(st,r,today);if(!f.biz.every(b=>flags.includes(b)))return false}
+function matchRoomFilters(st,r,f,today){f=f||{};const x=room(r);if(f.bld&&f.bld!=='全部楼栋'&&bldOf(r)!==f.bld)return false;if(f.status==='空房'&&roomBusy(st,r))return false;if(f.status==='已出租'&&!roomBusy(st,r))return false;if(f.status==='锁房'&&!x?.locked)return false;if(f.floor&&String(x.floor)!==String(f.floor))return false;if(f.biz&&f.biz.length){const flags=roomBizFlags(st,r,today);if(!f.biz.every(b=>flags.includes(b)))return false}
  if(f.q){const ks=String(f.q).toLowerCase().split(/\s+/).filter(Boolean);const hay=(bldOf(r)+' '+r+' '+(BUILDINGS[bldOf(r)]?.name||'')).toLowerCase();if(!ks.every(k=>hay.includes(k)))return false}
  if(f.minPrice!=null&&f.minPrice!==''&&(!(x.price)||x.price.monthly<+f.minPrice))return false;if(f.maxPrice!=null&&f.maxPrice!==''&&(!(x.price)||x.price.monthly>+f.maxPrice))return false;
  if(f.orient&&f.orient!=='全部'&&(x.orient||'')!==f.orient)return false;
