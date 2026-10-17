@@ -256,7 +256,23 @@ console.log('seed checks',pass,'pass',fail,'fail');
  // P0 mobile CRUD, price prefill, lock, persistence, filters and ledger
  await G('rooms');ok((await pg.$$('.room-card')).length>20,'room cards not chips');
  ok((await pg.$$('.floor-sec')).length>0&&(await pg.$$('.floor-hd')).length>0,'rooms floor sections and headings');
- ok(await pg.$$eval('.building-sec',bs=>bs.every(b=>b.querySelector(':scope > h3')&&b.querySelector(':scope > .floor-bar')&&b.querySelector('.floor-sec > .floor-hd'))),'each building owns floor strip and floor sections');
+ ok(await pg.$$eval('.building-sec',bs=>bs.every(b=>b.querySelector(':scope > h3')&&b.querySelector('.floor-sec > .floor-hd'))),'each building owns heading and floor sections');
+ ok(!(await pg.$('.floor-bar')),'no floor strip');
+ ok(!(await txt()).includes('地址未填写'),'no address helper');
+ ok(await pg.$$eval('.building-sec',bs=>bs.every(b=>!b.querySelector(':scope > .helper'))),'no building address line');
+ ok(await pg.$eval('.room-filter-row',e=>e.textContent.replace(/\s|▾/g,'')==='独栋状态筛选'),'mobile dropdown labels');
+ ok(await pg.$$eval('.room-quick',cs=>cs.map(c=>c.textContent).join('|')==='空房可租|即将离店|今日到期|签约中|有欠款|维修'),'mobile quick filter labels');
+ await clk('#btn-room-status');ok((await pg.$$('#room-status-menu button')).length===8,'status dropdown options');
+ await pg.evaluate(()=>[...document.querySelectorAll('#room-status-menu button')].find(b=>b.textContent==='已出租').click());await pg.waitForSelector('.room-card');
+ ok(await pg.$$eval('.room-card',cs=>cs.every(c=>window.CORE.roomStatus(window.__state(),c.dataset.room)==='已出租')),'status dropdown filters rooms');
+ await G('rooms');await clk('#btn-room-filter');ok(!!(await pg.$('#room-filter-panel')),'filter opens existing panel');
+ await G('rooms');
+ for(const label of ['空房可租','即将离店','今日到期','签约中','有欠款','维修']){
+  const selector='.room-quick[data-filter="'+label+'"]';await clk(selector);
+  ok(await pg.$eval(selector,e=>e.getAttribute('aria-pressed')==='true'),'quick enabled '+label);
+  ok(await pg.evaluate(label=>{const q=Object.fromEntries(new URLSearchParams(location.hash.split('?')[1]));const f={status:q.status,biz:(q.biz||'').split('|').filter(Boolean)};return (label==='空房可租'||label==='维修'?q.status===label:f.biz.includes(label))&&[...document.querySelectorAll('.room-card')].every(c=>window.CORE.matchRoomFilters(window.__state(),c.dataset.room,f,window.CORE.TODAY))},label),'quick filters rooms '+label);
+  await clk(selector);ok(await pg.$eval(selector,e=>e.getAttribute('aria-pressed')==='false'),'quick disabled '+label);
+ }
  ok(await pg.$$eval('.floor-hd',hs=>hs.every(h=>/^\d+层$/.test(h.textContent))),'floor headings use N层');
  ok(await pg.$$eval('.room-card',cs=>cs.every(c=>!/退:|到期\s*\d{4}|\d+楼/.test(c.textContent))),'room cards omit checkout dates, expiry dates and floor labels');
  ok(await pg.$$eval('.room-card.vacant .mid-l',cs=>cs.some(c=>/^空\d+天$/.test(c.textContent))),'vacant cards show 空N天');
@@ -275,9 +291,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await G('roomEdit?b='+encodeURIComponent('测试独栋A'));await typ('#re-r','T9901');await typ('#re-floor','9');await clk('#save-room');await pg.waitForSelector('#room-lock');
  S=await st();ok(S.buildings['测试独栋A'].rooms.some(x=>x.r==='T9901'),'add room existing building');
  await G('rooms?floor=9');ok((await pg.$$('.room-card')).length===1,'floor filter');
- await clk('.floor-bar .chipf:first-child');ok((await pg.$$('.room-card')).length>1,'building floor strip all click');
- await pg.evaluate(()=>{const b=[...document.querySelectorAll('.building-sec')].find(b=>b.querySelector('h3').textContent==='测试独栋A');[...b.querySelectorAll('.floor-bar .chipf')].find(c=>c.textContent==='9').click()});
- ok((await pg.$$('.room-card')).length===1,'building floor strip number click');
+ await G('rooms');ok((await pg.$$('.room-card')).length>1,'clear URL floor filter');
 
  await G('ledger?cid='+zl.id);ok((await txt()).includes('押金')&&(await txt()).includes('抵扣（非现金）'),'renew ledger visible');
  await G('contract?id='+zl.id+'&tab='+encodeURIComponent('账单'));ok(!!(await pg.$('a[href="#ledger?cid='+zl.id+'"]')),'contract ledger link');

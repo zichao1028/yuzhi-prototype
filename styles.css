@@ -69,7 +69,6 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 .chipf{display:inline-block;padding:6px 10px;border:1px solid #ddd;border-radius:16px;font-size:12px;background:#fff}
 .chipf.on{background:#1a73e8;color:#fff;border-color:#1a73e8}
 .chipf.stub{opacity:.45}
-.floor-bar{display:flex;gap:6px;overflow-x:auto;padding:6px 0;margin-bottom:6px}
 .filter-panel{background:#f7f8fa;border-radius:10px;padding:10px;margin:8px 0}
 .bill-filters .tight{font-size:12px;white-space:nowrap}
 .check.tight{display:inline-flex;align-items:center;gap:4px}
@@ -78,8 +77,6 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 .gap-stats{border:1px solid #ddd;padding:10px;margin:10px 0}.tabs a{white-space:nowrap;padding:8px;color:inherit}.tabs a.act{font-weight:bold;border-bottom:2px solid #333}#home-fab{font-size:28px}.sheet .entry{margin:6px 0;padding:10px}.gap-stats .row{padding:7px 0}
 
 /* 独栋：每栋楼层筛选与楼层段 · 房态卡对齐寓小二（移动端参考） */
-.building-sec > .floor-bar{border-bottom:1px solid #ddd;margin:8px 0;flex-wrap:nowrap}
-.building-sec > .floor-bar .chipf{flex-shrink:0;cursor:pointer}
 .floor-sec{margin-top:16px}
 .floor-hd{font-size:13px;line-height:24px;color:#666;border-bottom:1px solid #eee;padding-bottom:4px}
 .floor-sec .room-cards{margin-top:8px;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -101,3 +98,15 @@ body.bill-editor{background:#f2f3f7}.bill-editor .nav{background:#fff;border-bot
 .room-card .rb.sign{background:#3b82f6}
 .room-card .rb.lock,.room-card .rb.repair{background:#6b7280}
 @media (min-width:720px){.floor-sec .room-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}}
+
+/* Mobile rooms: dropdown labels and a single scrolling quick-filter row. */
+.room-filter-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0}
+.room-dropdown{border:0;background:transparent;color:#222;font:inherit;padding:6px 4px;cursor:pointer}
+.room-dropdown span{font-size:11px;margin-left:4px}
+.room-dropdown.fixed,.room-dropdown.active{color:#1764e8}
+.room-dropdown.fixed{cursor:default}
+.room-quick-filters{display:flex;gap:10px;overflow-x:auto;white-space:nowrap;padding:4px 0 12px;-webkit-overflow-scrolling:touch}
+.room-quick{flex-shrink:0;border:1px solid transparent;border-radius:4px;background:#f2f3f6;color:#303238;padding:9px 10px;font:inherit;font-size:14px;cursor:pointer}
+.room-quick.on{background:#e9f0ff;color:#1764e8;border-color:#b8d0ff}
+.room-status-menu .chipf{cursor:pointer}
+.room-dropdown:focus-visible,.room-quick:focus-visible{outline:2px solid #1764e8;outline-offset:2px}
