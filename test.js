@@ -110,6 +110,8 @@ for(const dep of [1000,2500,0]){
 }
 console.log('seed checks',pass,'pass',fail,'fail');
 // ---- ② flows ----
+// gap2 core
+{const t=K.seed();ok(t.settings.subjects.length===5&&t.apartment.name==='寓智云控','gap2 defaults');K.updateSettings(t,{ledger:{requireNote:true},billRules:{payRuleDefault:{days:3}}});const copy=JSON.parse(JSON.stringify(t));ok(copy.settings.ledger.requireNote&&copy.settings.ledger.showOffset&&copy.settings.billRules.payRuleDefault.days===3,'settings merge and serialization');const x=K.createIntentSign(t,{cid:t.contracts[0].id,title:'测试'});K.signIntent(t,x.id,'测试人');ok(x.status==='已签署'&&x.signedAt,'intent sign');const y=K.createIntentSign(t,{cid:t.contracts[0].id,title:'撤回测试'});K.withdrawIntent(t,y.id);ok(y.status==='已撤回','intent withdraw');const p=t.payables[0],paid=p.paid;K.voidPayable(t,p.id);ok(K.payableStatus(p)==='已作废'&&p.paid===paid,'payable void preserves paid');let rejected=false;try{K.payPayable(t,p.id,K.TODAY)}catch(e){rejected=true}ok(rejected,'voided payable cannot pay');rejected=false;try{K.voidPayable(t,p.id)}catch(e){rejected=true}ok(rejected,'repeat payable void rejected');t.onboarding.visitedSettings=true;ok(K.onboardingProgress(t).done.settings&&K.onboardingProgress(t).total===6,'onboarding flags')}
 (async()=>{const pp=require('/tmp/pt/node_modules/puppeteer-core');const br=await pp.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const pg=await br.newPage();await pg.setViewport({width:390,height:844});
  pg.on('dialog',async d=>{if(d.type()=='prompt')await d.accept(d.defaultValue()||'13900009999');else await d.accept()});pg.on('pageerror',e=>ok(0,'pageerror '+e.message));
  const G=async h=>{await pg.goto(base+'#'+h);await pg.waitForSelector('.nav')};const st=()=>pg.evaluate(()=>window.__state());const txt=()=>pg.evaluate(()=>document.body.innerText);
@@ -155,6 +157,10 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await G('bills?t=全部');ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
  await G('rooms');ok(!!(await pg.$('#btn-room-filter'))||(await txt()).includes('筛选'),'room filter entry');
  await G('rooms?panel=1');ok((await txt()).includes('空房不可租')&&(await txt()).includes('业务状态')&&!(await txt()).includes('污房'),'room filter panel statuses');
+ await G('me');ok((await txt()).includes('公寓资料')&&(await txt()).includes('设置')&&(await txt()).includes('操作日志'),'me hubs');
+ await G('settings');ok((await txt()).includes('财务科目'),'settings hub');await G('settingsLedger');await clk('#save-settings');await pg.reload();await pg.waitForSelector('#save-settings');ok((await st()).settings.ledger.defaultMethod==='线下收款','settings persisted');
+ await G('intentSigns');await clk('a[href^="#intentSign?id="]');ok(!!(await pg.$('#sign-intent')),'intent clickable');await clk('#sign-intent');ok((await txt()).includes('已签署'),'intent signed UI');
+ await G('onboarding');ok((await txt()).includes('/6')&&(await txt()).includes('至少一笔工单'),'onboarding checklist');S=await st();if(S.payables.length){await G('pay?id='+S.payables[0].id);ok(!!(await pg.$('#void-payable')),'payable void action');await clk('#void-payable');ok((await txt()).includes('已作废')&&!(await pg.$('#do-pay')),'payable void UI');await G('bills?side=out&t='+encodeURIComponent('已作废'));ok((await pg.$$('.bc')).length===1,'void payable tab')}
  await G('home');ok(!!(await pg.$('#home-fab')),'home FAB');await clk('#home-fab');ok((await txt()).includes('合同多房')&&(await txt()).includes('录户号'),'FAB menu');
  ok(!(await txt()).match(/标为脏|清除脏|脏房状态/),'room filter has no dirty business');
  const z=S.contracts.find(c=>c.who=='张三');
