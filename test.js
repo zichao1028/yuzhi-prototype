@@ -211,9 +211,13 @@ console.log('seed checks',pass,'pass',fail,'fail');
 
  await G('contract?id='+z.id+'&tab=物业交割');ok((await txt()).includes('第一版不实现'),'物业交割 stub');
  await G('contract?id='+z.id+'&tab=合同');ok(!!(await pg.$('#btn-checkout'))&&!(await pg.$('#btn-swap'))&&!!(await pg.$('#btn-resign')),'multi: checkout+resign, no swap');
- // collect + edit
+ // collect + edit (寓小二账单详情)
  const q4=S.bills.find(b=>b.cid==z.id&&b.n==4);
- await G('bill?id='+q4.id);await typ('#pamt','5000');await clk('#do-collect');ok((await pg.$eval('#bstatus',e=>e.textContent))=='待收款','partial collect');
+ await G('bill?id='+q4.id);
+ ok((await txt()).includes('详情')&&(await txt()).includes('账单明细')&&(await txt()).includes('应收')&&(await txt()).includes('线下收款')&&(await txt()).includes('线上收款'),'bill detail yuxiaoer layout');
+ ok((await pg.$eval('#bstatus',e=>e.textContent))==='待收','status label 待收');
+ ok((await txt()).includes('权责')&&(await txt()).includes('元/月')&&(await txt()).includes('应收总额'),'accrual period monthly recv');
+ await clk('#btn-offline-collect');await pg.waitForSelector('#pamt');await typ('#pamt','5000');await clk('#do-collect');ok((await pg.$eval('#bstatus',e=>e.textContent))=='待收','partial collect');
  await clk('#edit-items');await pg.waitForSelector('#items');await pg.evaluate(()=>document.getElementById('items').insertAdjacentHTML('beforeend',itemRowHtml({name:'维修费',amount:50})));await clk('#save-items');
  S=await st();ok(S.bills.find(b=>b.id==q4.id).items.some(i=>i.name=='维修费'),'item added');
 // checkout dual path 李四
