@@ -1,4 +1,15 @@
-/* 低保真线框：灰阶，仅一个中性强调色 #333 用于选中/主要操作 */
+/* 低保真线框：灰阶，个人页使用参考图的浅蓝与金色点缀 */
+.me-page{padding:20px 20px 12px;min-height:calc(100dvh - 120px);display:flex;flex-direction:column;background:#fff}
+.me-profile{display:flex;align-items:center;gap:10px;min-height:64px;margin-bottom:24px}
+.me-avatar{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(150deg,#d5e5ea,#aaa0bd 55%,#687a70);font-size:25px;color:white}
+.me-name{font-size:19px}.me-cert{border:0;border-radius:14px;background:#f0f8fd;color:#6b9ac1;font-size:12px;padding:2px 7px}
+.me-svc{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:10px;padding:12px;background:linear-gradient(160deg,#636777,#292b35);color:#e2c99d;margin-bottom:20px}
+.me-svc b{font-size:14px}.me-svc small{display:block;font-size:10px;line-height:16px;color:#d3cbbd}.me-svc a{flex-shrink:0;border:1px solid #d5bc8f;border-radius:14px;padding:0 7px;font-size:11px;line-height:20px;color:#e2c99d;text-decoration:none}
+.me-item{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:0;border:0;background:#fff;font:inherit;color:#444;text-decoration:none;text-align:left}
+.me-icon{width:20px;text-align:center;color:#b7bbbd;font-size:21px}.me-label{flex:1;font-size:15px}.me-right{margin-left:auto;color:#bfc2c4;font-size:13px}.me-apartment{flex:1;display:flex;align-items:center;gap:12px;align-self:stretch;text-decoration:none;color:inherit}
+.me-tools{display:flex;gap:8px}.me-tools button{border:0;border-radius:50%;background:#f6f6f6;color:#a5aaad;font-size:19px;width:30px;height:30px}
+.me-csm{display:flex;align-items:center;gap:12px;padding-top:28px;margin-top:auto;min-height:82px}.me-csm-image{flex-shrink:0;width:48px;height:48px;border-radius:5px;display:grid;place-items:center;background:#d5c8b2;color:#514b41;font-size:24px}.me-csm-copy{flex:1;min-width:0;font-size:14px}.me-csm small{display:block;color:#999;font-size:11px;line-height:18px}.me-csm small span{color:#d18d92}.me-csm button{border:0;border-radius:50%;background:#f4f4f4;color:#aeb2b3;font-size:22px;width:36px;height:36px;flex-shrink:0}
+.me-page button{cursor:pointer}
 *{box-sizing:border-box}html,body{margin:0}body{font-family:-apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;background:#fff;color:#222;font-size:15px;line-height:24px;padding-bottom:72px}
 a{color:#222;text-decoration:underline}a.card,a.btn,.rooms a,.tabbar a,.nav a{text-decoration:none}
 .nav{position:sticky;top:0;z-index:10;background:#fff;height:48px;display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid #999}

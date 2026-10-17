@@ -242,7 +242,9 @@ console.log('core + VM checks',pass,'pass',fail,'fail');
  await G('bills?t=全部');ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
  await G('rooms');ok(!!(await pg.$('#btn-room-filter'))||(await txt()).includes('筛选'),'room filter entry');
  await G('rooms?panel=1');ok(await pg.$eval('#room-filter-sheet',e=>e.textContent.includes('定价下限')&&e.textContent.includes('朝向')&&!e.textContent.includes('业务状态')),'room more filter fields');
- await G('me');ok((await txt()).includes('公寓资料')&&(await txt()).includes('设置')&&(await txt()).includes('操作日志'),'me hubs');
+ await G('me');ok(await pg.$eval('.me-page',e=>['公寓','个人认证','服务订购','我的账户','功能建议','关于','设置','专属客户经理'].every(t=>e.textContent.includes(t))),'me screenshot layout');
+ ok(await pg.$eval('.me-page',e=>e.querySelector('.me-name').textContent==='公寓'&&[...e.querySelectorAll('.me-label')].map(x=>x.textContent).join('|')==='公寓|我的账户|功能建议|关于|设置'&&!/颜色主题|房东|示例今天|公寓资料|操作日志/.test(e.textContent)&&!e.querySelector('#reset')),'me identity and exact menu');
+ await clk('.me-apartment');ok((await txt()).includes('公寓资料'),'me apartment link');await G('me');await clk('.me-menu a[href="#settings"]');ok((await txt()).includes('财务科目'),'me settings link');
  await G('settings');ok((await txt()).includes('财务科目'),'settings hub');await G('settingsLedger');await clk('#save-settings');await pg.reload();await pg.waitForSelector('#save-settings');ok((await st()).settings.ledger.defaultMethod==='线下收款','settings persisted');
  await G('intentSigns');await clk('a[href^="#intentSign?id="]');ok(!!(await pg.$('#sign-intent')),'intent clickable');await clk('#sign-intent');ok((await txt()).includes('已签署'),'intent signed UI');
  await G('onboarding');ok((await txt()).includes('/6')&&(await txt()).includes('至少一笔工单'),'onboarding checklist');S=await st();if(S.payables.length){await G('pay?id='+S.payables[0].id);ok(!!(await pg.$('#void-payable')),'payable void action');await clk('#void-payable');ok((await txt()).includes('已作废')&&!(await pg.$('#do-pay')),'payable void UI');await G('bills?side=void');ok((await pg.$$('[data-direction=out]')).length===1&&(await txt()).includes('作废日期 2026-10-17'),'independent void payable tab')}
@@ -415,7 +417,7 @@ console.log('core + VM checks',pass,'pass',fail,'fail');
  S=await st();const oldW=S.contracts.find(c=>c.id==ww.id);const neu=S.contracts.find(c=>c.who=='王五'&&c.source&&c.source.type=='重签');
  ok(oldW.voided&&neu&&neu.rent==2300&&K.billsOf(S,oldW.id).every(b=>b.done&&b.excluded),'resign voids old + excludes bills');
  // reset
- await G('me');await clk('#reset');S=await st();ok(S.contracts.length==6&&S.settlements.length==1,'reset');
+ await G('home');await clk('#reset');S=await st();ok(S.contracts.length==6&&S.settlements.length==1,'reset');
  for(const h of ['workOrders','workOrderNew','vacant','bookings','bookingNew','batchPrice','batchEdit','ownerContracts','ownerContractNew','invoices','ledgerNote','meterAccount','home','contracts','bills','bills?side=out','rooms','room?r=301','settlement?id='+S.settlements[0].id]){await G(h);ok((await txt()).length>20,'render '+h)}
  await G('home');ok(!!(await pg.$('#home-fab')),'home FAB');await clk('#home-fab');ok((await txt()).includes('合同多房')&&(await txt()).includes('录户号'),'FAB menu');
  ok(!(await txt()).match(/H\d{3}/),'no H codes');
