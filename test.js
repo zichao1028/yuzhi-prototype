@@ -11,7 +11,7 @@ for(const c of s.contracts){
  for(let i=1;i<rb.length;i++)ok(K.addD(rb[i-1].e,1)==rb[i].s,'contiguous');
  const rentTot=K.sum(rb.map(b=>(b.items.find(i=>i.kind=='rent')||{amount:0}).amount));
  ok(Math.abs(rentTot-K.rentIn(c.rent,c.start,c.start,c.end))<0.02,'contract rent total '+c.who);
- for(const b of bl){ok(K.billPaid(b)<=K.billTotal(b)+1e-6,'paid<=total');ok(['待收','部分收款','已收','已完成','已作废'].includes(K.billStatus(b)),'status');ok(b.k!='rent'||b.items.some(i=>i.name==='租金'),'rent item name')}
+ for(const b of bl){ok(K.billPaid(b)<=K.billTotal(b)+1e-6,'paid<=total');ok(['待收','已完成','已作废'].includes(K.billStatus(b)),'status');ok(b.k!='rent'||b.items.some(i=>i.name==='租金'),'rent item name')}
  if(c.term)ok(bl.every(b=>b.done),'term→all done');
  ok(!c.rooms.some(x=>x.out&&!c.term),'no partial outs without term');
 }
@@ -52,7 +52,7 @@ ok(typeof K.partialPreview==='undefined'&&typeof K.partialApply==='undefined','n
  oldRent[0].pays=[];oldRent[0].done=false; // 其他欠款不阻止续租也不转移
  const nc=K.renewApply(t,c.id,'2027-07-31',1800,1800,'测试经办');
  const nb=K.billsOf(t,nc.id)[0],p=t.payables.find(p=>p.renewTo===nc.id);
- ok((K.billStatus(nb)==='已收'||K.billStatus(nb)==='已完成')&&p.paid===1800&&p.status==='已完成','renew equal deposit offset completed');
+ ok((K.billStatus(nb)==='已完成')&&p.paid===1800&&p.status==='已完成','renew equal deposit offset completed');
  ok(nc.source.from===c.id&&K.billOut(oldRent[0])===1800&&!oldRent[0].done,'renew source and old unpaid preserved');
  const ls=t.ledger.filter(l=>l.pid===p.id);ok(ls.length===2&&ls.every(l=>l.net===0)&&ls[0].fulfilled+ls[1].fulfilled===0,'offset two-sided ledger cash zero');
  const len=t.ledger.length;K.ensureLedger(t);K.ensureLedger(t);ok(t.ledger.length===len,'ledger migration idempotent');
@@ -69,16 +69,16 @@ for(const dep of [1000,2500,0]){
 {
  const t=K.seed(),c=t.contracts.find(c=>c.who==='李四');const before=JSON.stringify(t);let e='';try{K.swapApply(t,c.id,'2026-10-17','304','2027-10-16',1600,'房东',K.TODAY,[1])}catch(x){e=x.message}ok(e.includes('顺序')&&JSON.stringify(t)===before,'skip earlier bill rejected before swap mutation');
  const result=K.swapApply(t,c.id,'2026-10-17','304','2027-10-16',1600,'测试经办',K.TODAY,[0,1]);const bl=K.billsOf(t,result.newContract.id),p=t.payables.find(p=>p.sid===result.oldEv.sid);
- ok((K.billStatus(bl[0])==='已收'||K.billStatus(bl[0])==='已完成')&&K.billStatus(bl[1])==='部分收款'&&p.status==='已完成','swap ordered full then partial offset');
+ ok((K.billStatus(bl[0])==='已完成')&&K.billStatus(bl[1])==='待收'&&p.status==='已完成','swap ordered full then partial offset');
  ok(K.sum(bl.flatMap(b=>b.pays).filter(p=>p.m==='抵扣').map(p=>p.amount))===p.offset,'source and target conserved');
- const b=bl[1],out=K.billOut(b);K.collect(t,b.id,out,K.TODAY,'现金经办');ok((K.billStatus(b)==='已收'||K.billStatus(b)==='已完成')&&t.ledger.some(l=>l.bid===b.id&&l.net===out&&l.by==='现金经办'),'partial to complete and collection ledger');
+ const b=bl[1],out=K.billOut(b);K.collect(t,b.id,out,K.TODAY,'现金经办');ok((K.billStatus(b)==='已完成')&&t.ledger.some(l=>l.bid===b.id&&l.net===out&&l.by==='现金经办'),'partial to complete and collection ledger');
 }
 
 
 // confirm5: bill status labels, renew pending, work order, filters
 {
  ok(K.billStatus({excluded:true,done:true,items:[{amount:1}],pays:[]})==='已作废','void status');
- ok(K.billStatus({done:false,items:[{amount:100}],pays:[{amount:100}]})==='已收','paid is 已收 not 已完成');
+ ok(K.billStatus({done:false,items:[{amount:100}],pays:[{amount:100}]})==='已完成','fully paid is completed');
  ok(K.billStatus({done:true,items:[{amount:100}],pays:[{amount:100}]})==='已完成','done is 已完成');
  const t=K.seed(),c=t.contracts.find(c=>c.who==='李四');
  const nc=K.renewApply(t,c.id,'2028-02-28',1500,1500,'测');
@@ -112,11 +112,41 @@ console.log('seed checks',pass,'pass',fail,'fail');
 // ---- ② flows ----
 // gap2 core
 {const t=K.seed();ok(t.settings.subjects.length===5&&t.apartment.name==='寓智云控','gap2 defaults');K.updateSettings(t,{ledger:{requireNote:true},billRules:{payRuleDefault:{days:3}}});const copy=JSON.parse(JSON.stringify(t));ok(copy.settings.ledger.requireNote&&copy.settings.ledger.showOffset&&copy.settings.billRules.payRuleDefault.days===3,'settings merge and serialization');const x=K.createIntentSign(t,{cid:t.contracts[0].id,title:'测试'});K.signIntent(t,x.id,'测试人');ok(x.status==='已签署'&&x.signedAt,'intent sign');const y=K.createIntentSign(t,{cid:t.contracts[0].id,title:'撤回测试'});K.withdrawIntent(t,y.id);ok(y.status==='已撤回','intent withdraw');const p=t.payables[0],paid=p.paid;K.voidPayable(t,p.id);ok(K.payableStatus(p)==='已作废'&&p.paid===paid,'payable void preserves paid');let rejected=false;try{K.payPayable(t,p.id,K.TODAY)}catch(e){rejected=true}ok(rejected,'voided payable cannot pay');rejected=false;try{K.voidPayable(t,p.id)}catch(e){rejected=true}ok(rejected,'repeat payable void rejected');t.onboarding.visitedSettings=true;ok(K.onboardingProgress(t).done.settings&&K.onboardingProgress(t).total===6,'onboarding flags')}
+// Room arrears flags follow the current receipt status for all payment states.
+{const t=K.seed(),c=t.contracts.find(c=>c.who==='张三'),r=c.rooms[0].r;
+ const b={cid:c.id,due:K.addD(K.TODAY,-1),items:[{amount:100}],pays:[]};t.bills=[b];
+ for(const paid of [0,20,100]){b.pays=[{amount:paid}];const flags=K.roomBizFlags(t,r,K.TODAY);ok(flags.includes('待收款')===(paid<100)&&flags.includes('有欠款')===(paid<100),'room receipt flags paid '+paid)}
+ b.pays=[];b.done=true;ok(!K.roomBizFlags(t,r,K.TODAY).some(f=>['待收款','有欠款'].includes(f)),'completed room bill clears arrears flags');
+ b.done=false;b.excluded=true;ok(!K.roomBizFlags(t,r,K.TODAY).some(f=>['待收款','有欠款'].includes(f)),'voided room bill clears arrears flags');
+}
+// Room arrears flags follow the receipt status through partial, completed and voided bills.
+{const c={id:'flags-contract',rooms:[{r:'301'}],start:'2026-01-01',end:'2027-01-01'},b={id:'flags-bill',cid:c.id,due:'2026-01-01',items:[{amount:100}],pays:[]},t={contracts:[c],bills:[b],bookings:[]};
+ const flags=()=>K.roomBizFlags(t,'301',K.TODAY);
+ ok(flags().includes('待收款')&&flags().includes('有欠款'),'unpaid room has receipt and arrears flags');
+ b.pays.push({amount:20});ok(flags().includes('待收款')&&flags().includes('有欠款'),'partial receipt keeps room arrears flags');
+ b.pays.push({amount:80});ok(!flags().includes('待收款')&&!flags().includes('有欠款'),'completed receipt clears room arrears flags');
+ b.pays=[];b.excluded=true;ok(!flags().includes('待收款')&&!flags().includes('有欠款'),'voided receipt clears room arrears flags');
+}
+// 寓小二 2026-10-17 确认矩阵：部分到账、付款中、重置及作废优先级。
+{const t=K.seed(),c=t.contracts.find(c=>c.who==='张三'),b=K.billsOf(t,c.id).find(b=>b.k==='rent'&&K.billStatus(b)==='待收');
+ K.collect(t,b.id,100,K.TODAY);ok(K.billStatus(b)==='待收'&&K.billStatusMatch(b,'待收款')&&K.billOut(b)>0,'partial receipt stays pending');
+ K.resetBills(t,c.id);ok(K.billStatus(b)==='待收'&&K.billOut(b)>0,'reset preserves partial pending receipt');
+ K.collect(t,b.id,K.billOut(b),K.TODAY);ok(K.billStatus(b)==='已完成'&&!K.itemsEditable(b)&&K.odays(b,K.TODAY)===0,'full receipt completed without overdue');
+ K.voidBill(t,b.id);ok(b.voidedAt===K.TODAY&&!K.billStatusMatch(b,'全部')&&!K.billStatusMatch(b,'已完成'),'void receipt excluded from active filters');
+ for(const p of [{amount:100,paid:0,status:'待付款'},{amount:100,paid:20,status:'部分付款'},{amount:100,paid:0,status:'付款中'},{amount:100,paid:100,status:'待付款'}])ok(K.payableStatus(p)===(p.paid===100?'已完成':p.paid>0||p.status==='付款中'?'付款中':'待付款'),'payable matrix '+p.status);
+}
 (async()=>{const pp=require('/tmp/pt/node_modules/puppeteer-core');const br=await pp.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const pg=await br.newPage();await pg.setViewport({width:390,height:844});
  pg.on('dialog',async d=>{if(d.type()=='prompt')await d.accept(d.defaultValue()||'13900009999');else await d.accept()});pg.on('pageerror',e=>ok(0,'pageerror '+e.message));
  const G=async h=>{await pg.goto(base+'#'+h);await pg.waitForSelector('.nav')};const st=()=>pg.evaluate(()=>window.__state());const txt=()=>pg.evaluate(()=>document.body.innerText);
  const clk=async sel=>{await pg.$eval(sel,e=>e.click());await new Promise(r=>setTimeout(r,150))};const typ=async(sel,v)=>{await pg.$eval(sel,(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'));e.dispatchEvent(new Event('change'))},v);await new Promise(r=>setTimeout(r,60))};
  await pg.goto(base);await pg.evaluate(()=>{localStorage.clear();sessionStorage.clear()});await G('home');await clk('#reset');
+
+ await G('bills?side=out');ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='全部|待付款|付款中|已完成','payment exact tabs');ok((await pg.$$eval('.seg b',es=>es.map(e=>e.textContent))).join('|')==='收款账单|付款账单|作废账单','three top tabs');
+ await pg.evaluate(()=>{const s=window.__state();s.payables.push({id:'matrix-progress',cid:s.contracts[0].id,amount:100,paid:20,status:'部分付款',due:'2026-10-10',reason:'矩阵测试'});render()});
+ await G('bills?side=out&t='+encodeURIComponent('付款中'));ok((await pg.$$('.bc')).length===1&&(await pg.$eval('.bc .tag',e=>e.textContent))==='付款中','payment in progress card and filter');
+ await G('pay?id=matrix-progress');await clk('#do-pay');ok((await pg.$eval('#pstatus',e=>e.textContent))==='已完成','progress payment completes');
+ await G('bills?side=out&t='+encodeURIComponent('已完成'));ok((await txt()).includes('完成日期 2026-10-17'),'payment completion date');
+ await pg.evaluate(()=>{const s=window.__state();s.payables=s.payables.filter(p=>p.id!=='matrix-progress');s.ledger=s.ledger.filter(l=>l.pid!=='matrix-progress');localStorage.setItem('yuzhi-proto-state-v5',JSON.stringify(s))});
  // F0 search click
  await G('register?new=1');await pg.waitForSelector('#f-q');await typ('#f-q','B201');
  await pg.click('.sr[data-r="B201"]');await new Promise(r=>setTimeout(r,200));
@@ -151,16 +181,16 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await clk('#to-preview');ok((await pg.$eval('#rerr',e=>e.textContent)).includes('租期冲突'),'overlap blocked');
  // bills list style + contract tab same billTitle
  await G('bills?t=全部');ok((await txt()).includes('总金额（元）')&&!(await txt()).includes('批量'),'bills summary no batch');
- ok((await txt()).includes('已收')&&(await txt()).includes('已作废')&&(await txt()).includes('仅逾期'),'bills tabs mirror yuxiaoer');
- await G('bills?t=已收');ok((await txt()).includes('已收')||(await txt()).includes('暂无账单'),'bills 已收 tab');
- ok((await txt()).includes('租金·')||true,'bills 已收 rendered');
+ ok((await txt()).includes('已收（元）')&&(await txt()).includes('作废账单')&&(await txt()).includes('仅逾期'),'bills tabs mirror yuxiaoer');
+ await G('bills?t=已完成');ok((await pg.$$eval('.bc .tag',es=>es.every(e=>e.textContent==='已完成'))),'completed filter only completed');
+ ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='全部|待收款|已完成','receipt exact tabs');
  await G('bills?t=全部');ok((await txt()).includes('租金·')&&(await txt()).includes('张三'),'bill title fee·period·tenant');
  await G('rooms');ok(!!(await pg.$('#btn-room-filter'))||(await txt()).includes('筛选'),'room filter entry');
  await G('rooms?panel=1');ok((await txt()).includes('空房不可租')&&(await txt()).includes('业务状态')&&!(await txt()).includes('污房'),'room filter panel statuses');
  await G('me');ok((await txt()).includes('公寓资料')&&(await txt()).includes('设置')&&(await txt()).includes('操作日志'),'me hubs');
  await G('settings');ok((await txt()).includes('财务科目'),'settings hub');await G('settingsLedger');await clk('#save-settings');await pg.reload();await pg.waitForSelector('#save-settings');ok((await st()).settings.ledger.defaultMethod==='线下收款','settings persisted');
  await G('intentSigns');await clk('a[href^="#intentSign?id="]');ok(!!(await pg.$('#sign-intent')),'intent clickable');await clk('#sign-intent');ok((await txt()).includes('已签署'),'intent signed UI');
- await G('onboarding');ok((await txt()).includes('/6')&&(await txt()).includes('至少一笔工单'),'onboarding checklist');S=await st();if(S.payables.length){await G('pay?id='+S.payables[0].id);ok(!!(await pg.$('#void-payable')),'payable void action');await clk('#void-payable');ok((await txt()).includes('已作废')&&!(await pg.$('#do-pay')),'payable void UI');await G('bills?side=out&t='+encodeURIComponent('已作废'));ok((await pg.$$('.bc')).length===1,'void payable tab')}
+ await G('onboarding');ok((await txt()).includes('/6')&&(await txt()).includes('至少一笔工单'),'onboarding checklist');S=await st();if(S.payables.length){await G('pay?id='+S.payables[0].id);ok(!!(await pg.$('#void-payable')),'payable void action');await clk('#void-payable');ok((await txt()).includes('已作废')&&!(await pg.$('#do-pay')),'payable void UI');await G('bills?side=void');ok((await pg.$$('[data-direction=out]')).length===1&&(await txt()).includes('作废日期 2026-10-17'),'independent void payable tab')}
  await G('home');ok(!!(await pg.$('#home-fab')),'home FAB');await clk('#home-fab');ok((await txt()).includes('合同多房')&&(await txt()).includes('录户号'),'FAB menu');
  ok(!(await txt()).match(/标为脏|清除脏|脏房状态/),'room filter has no dirty business');
  const z=S.contracts.find(c=>c.who=='张三');
@@ -174,7 +204,7 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await G('contract?id='+z.id+'&tab=合同');ok(!!(await pg.$('#btn-checkout'))&&!(await pg.$('#btn-swap'))&&!!(await pg.$('#btn-resign')),'multi: checkout+resign, no swap');
  // collect + edit
  const q4=S.bills.find(b=>b.cid==z.id&&b.n==4);
- await G('bill?id='+q4.id);await typ('#pamt','5000');await clk('#do-collect');ok((await pg.$eval('#bstatus',e=>e.textContent))=='部分收款','partial collect');
+ await G('bill?id='+q4.id);await typ('#pamt','5000');await clk('#do-collect');ok((await pg.$eval('#bstatus',e=>e.textContent))=='待收款','partial collect');
  await clk('#edit-items');await pg.waitForSelector('#items');await pg.evaluate(()=>document.getElementById('items').insertAdjacentHTML('beforeend',itemRowHtml({name:'维修费',amount:50})));await clk('#save-items');
  S=await st();ok(S.bills.find(b=>b.id==q4.id).items.some(i=>i.name=='维修费'),'item added');
 // checkout dual path 李四
@@ -225,6 +255,12 @@ console.log('seed checks',pass,'pass',fail,'fail');
 
  // P0 mobile CRUD, price prefill, lock, persistence, filters and ledger
  await G('rooms');ok((await pg.$$('.room-card')).length>20,'room cards not chips');
+ ok((await pg.$$('.floor-sec')).length>0&&(await pg.$$('.floor-hd')).length>0,'rooms floor sections and headings');
+ ok(await pg.$$eval('.building-sec',bs=>bs.every(b=>b.querySelector(':scope > h3')&&b.querySelector(':scope > .floor-bar')&&b.querySelector('.floor-sec > .floor-hd'))),'each building owns floor strip and floor sections');
+ ok(await pg.$$eval('.floor-hd',hs=>hs.every(h=>/^\d+层$/.test(h.textContent))),'floor headings use N层');
+ ok(await pg.$$eval('.room-card',cs=>cs.every(c=>!/到期\s*\d{4}/.test(c.textContent)&&!/\d+楼/.test(c.textContent))),'room cards omit expiry label and floor label');
+ ok(await pg.$$eval('.room-card',cs=>cs.some(c=>/退:\s*\d{4}-\d{2}-\d{2}/.test(c.textContent))&&cs.some(c=>/空置\d+天/.test(c.textContent))),'room cards show rented end and vacant days');
+
  await G('room?r=T0101');ok((await txt()).includes('合同列表')&&(await txt()).includes('暂无合同'),'room contract empty state');
  await G('roomPrice?r=T0101');await typ('#rp-monthly','1350');await typ('#rp-mode','amount');await typ('#rp-dep','600');await clk('#save-price');
  await pg.waitForSelector('#room-register');await clk('#room-register');await pg.waitForSelector('#f-rent');
@@ -236,6 +272,10 @@ console.log('seed checks',pass,'pass',fail,'fail');
  await G('roomEdit?b='+encodeURIComponent('测试独栋A'));await typ('#re-r','T9901');await typ('#re-floor','9');await clk('#save-room');await pg.waitForSelector('#room-lock');
  S=await st();ok(S.buildings['测试独栋A'].rooms.some(x=>x.r==='T9901'),'add room existing building');
  await G('rooms?floor=9');ok((await pg.$$('.room-card')).length===1,'floor filter');
+ await clk('.floor-bar .chipf:first-child');ok((await pg.$$('.room-card')).length>1,'building floor strip all click');
+ await pg.evaluate(()=>{const b=[...document.querySelectorAll('.building-sec')].find(b=>b.querySelector('h3').textContent==='测试独栋A');[...b.querySelectorAll('.floor-bar .chipf')].find(c=>c.textContent==='9').click()});
+ ok((await pg.$$('.room-card')).length===1,'building floor strip number click');
+
  await G('ledger?cid='+zl.id);ok((await txt()).includes('押金')&&(await txt()).includes('抵扣（非现金）'),'renew ledger visible');
  await G('contract?id='+zl.id+'&tab='+encodeURIComponent('账单'));ok(!!(await pg.$('a[href="#ledger?cid='+zl.id+'"]')),'contract ledger link');
  // paid seed single-room swap: cannot select later period first

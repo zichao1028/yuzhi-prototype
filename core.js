@@ -24,7 +24,7 @@ function roomBizFlags(st,r,today){const flags=[];if(bookingsOf(st,r).some(b=>b.s
  if(c.end===today)flags.push('今日到期');
  if(c.end<today&&!c.term)flags.push('到期未退房');
  const daysLeft=days(today,c.end);if(daysLeft>=0&&daysLeft<=7&&c.end>today)flags.push('即将离店');
- const bl=billsOf(st,c.id);if(bl.some(b=>['待收','部分收款'].includes(billStatus(b))))flags.push('待收款');
+ const bl=billsOf(st,c.id);if(bl.some(b=>billStatus(b)==='待收'))flags.push('待收款');
  if(bl.some(b=>odays(b,today)>0))flags.push('有欠款');
  if(c.term&&c.term.settled===false)flags.push('退租未结账');
  if(c.reserved)flags.push('已预定');
@@ -52,9 +52,9 @@ const billTotal=b=>sum(b.items.map(i=>i.amount));
 function syncTotal(b){b.total=billTotal(b);return b}
 const billPaid=b=>sum(b.pays.map(p=>p.amount));
 const billOut=b=>b.done?0:r2(billTotal(b)-billPaid(b));
-function billStatus(b){if(b.excluded)return '已作废';const t=billTotal(b),p=billPaid(b);if(b.done)return '已完成';if(p>=t-1e-9)return '已收';if(p>0)return '部分收款';return '待收'}
-function billStatusMatch(b,tab){if(tab==='全部')return !b.excluded;if(tab==='已作废')return !!b.excluded;if(tab==='逾期')return odays(b,TODAY)>0;return billStatus(b)===tab}
-function odays(b,today){const st=billStatus(b);return (st=='待收'||st=='部分收款')&&b.due<today?days(b.due,today):0}
+function billStatus(b){if(b.excluded)return '已作废';const t=billTotal(b),p=billPaid(b);if(b.done)return '已完成';if(p>=t-1e-9)return '已完成';return '待收'}
+function billStatusMatch(b,tab){if(tab==='全部')return !b.excluded;if(tab==='已作废')return !!b.excluded;if(tab==='逾期')return odays(b,TODAY)>0;return billStatus(b)===(tab==='待收款'?'待收':tab)}
+function odays(b,today){const st=billStatus(b);return st=='待收'&&b.due<today?days(b.due,today):0}
 const payT=c=>`付${c.payN}押${c.depM}`;
 const ruleT=r=>r.type=='fixed'?`每期账单开始月份 ${r.day} 日支付（押金与第1期为合同开始日）`:`账单开始日期前 ${r.days} 天支付（押金与第1期为合同开始日）`;
 function cStatus(c,today){if(c.removed)return '已删除';if(c.voided)return '已作废';if(c.term)return '已终止';if(c.end<today)return '已到期';return '生效中'}
@@ -70,8 +70,8 @@ function createIntentSign(st,o){if(!C(st,o.cid)||!String(o.title||'').trim())thr
 function intentAction(st,id,by,status){const x=(st.intentSigns||[]).find(x=>x.id===id);if(!x||x.status!=='待签署')throw Error('仅待签署记录可操作');x.status=status;x.updatedBy=by||'房东';if(status==='已签署')x.signedAt=TODAY;log(st,x.cid,TODAY,by,status,x.title,[]);return x}
 function signIntent(st,id,by){return intentAction(st,id,by,'已签署')}
 function withdrawIntent(st,id,by){return intentAction(st,id,by,'已撤回')}
-function payableStatus(p){return p.excluded||p.voided?'已作废':p.status}
-function voidPayable(st,id,by,reason){const p=st.payables.find(x=>x.id===id);if(!p||payableStatus(p)==='已作废')throw Error('付款账单不存在或已作废');ensureLedger(st);p.excluded=true;p.status='已作废';log(st,p.cid,TODAY,by,'作废付款账单',reason||'作废付款账单，已付款保留',[]);return p}
+function payableStatus(p){if(p.excluded||p.voided||p.status==='已作废')return '已作废';if(p.status==='已完成'||p.paid>=p.amount-1e-9)return '已完成';return p.paid>0||p.status==='付款中'||p.status==='部分付款'?'付款中':'待付款'}
+function voidPayable(st,id,by,reason){const p=st.payables.find(x=>x.id===id);if(!p||payableStatus(p)==='已作废')throw Error('付款账单不存在或已作废');ensureLedger(st);p.excluded=true;p.voidedAt=TODAY;p.status='已作废';log(st,p.cid,TODAY,by,'作废付款账单',reason||'作废付款账单，已付款保留',[]);return p}
 function onboardingProgress(st){const done={building:Object.keys(st.buildings||{}).length>0,price:Object.values(st.buildings||{}).some(b=>(b.rooms||[]).some(r=>r.price&&r.price.monthly>0)),register:st.contracts.some(c=>!c.removed&&cStatus(c,TODAY)==='生效中'),collect:st.bills.some(b=>b.pays.some(p=>p.m==='线下收款'&&p.amount>0)),workOrder:(st.workOrders||[]).length>0,settings:!!st.onboarding?.visitedSettings};return {done,count:Object.values(done).filter(Boolean).length,total:6}}
 function empty(){return {v:5,settings:defaultSettings(),apartment:defaultApartment(),intentSigns:[],onboarding:{done:{}},today:TODAY,seq:1,buildings:JSON.parse(JSON.stringify(BUILDINGS)),contracts:[],bills:[],payables:[],settlements:[],events:[],ledger:[],workOrders:[],bookings:[],invoices:[],ownerContracts:[]}}
 const nid=(st,p)=>p+(st.seq++);
@@ -115,11 +115,11 @@ function register(st,f,at){const err=validateReg(st,f);if(err.length)throw new E
  if(f.bookingId){const b=(st.bookings||[]).find(b=>b.id===f.bookingId);if(b&&b.status==='有效'){b.status='已转登记';b.cid=c.id}}
  ensureLedger(st);if(f.resignFrom)c.source={type:'重签',from:f.resignFrom};log(st,c.id,at,f.op,'租客登记',`${c.sign} · ${c.rooms.length} 间房 · 月租 ${c.rent} · ${c.start} 至 ${c.end}`,[]);return c}
 function log(st,cid,at,by,type,text,changes,extra){const ev={id:nid(st,'e'),cid,at:at||TODAY+' 10:00',by:by||'房东',type,text,changes:changes||[],...(extra||{})};st.events.push(ev);return ev}
-function collect(st,bid,amount,date,by){const b=st.bills.find(x=>x.id==bid);if(!b)throw new Error('账单不存在');const s=billStatus(b);if(b.excluded||s=='已完成'||s=='已收')throw new Error('账单已无待收金额');
+function collect(st,bid,amount,date,by){const b=st.bills.find(x=>x.id==bid);if(!b)throw new Error('账单不存在');const s=billStatus(b);if(b.excluded||s=='已完成')throw new Error('账单已无待收金额');
  amount=r2(+amount);if(!(amount>0))throw new Error('收款金额须大于 0');if(amount>billOut(b)+1e-9)throw new Error('收款金额不能超过待收 '+billOut(b));if(!date||date>TODAY)throw new Error('收款日期不能晚于今天');
  b.pays.push({m:'线下收款',amount,date,by:by||'房东'});ensureLedger(st);log(st,b.cid,date+' 10:00',by,'收款',`${b.k=='dep'?'押金':'租金第'+b.n+'期'} 收款 ${amount}`,[]);return b}
-function itemsEditable(b){const s=billStatus(b);return s=='待收'||s=='部分收款'}
-function setItems(st,bid,items,by){const b=st.bills.find(x=>x.id==bid);if(!itemsEditable(b))throw new Error('已收 / 已完成账单不可调整');
+function itemsEditable(b){const s=billStatus(b);return s=='待收'}
+function setItems(st,bid,items,by){const b=st.bills.find(x=>x.id==bid);if(!itemsEditable(b))throw new Error('已完成或已作废账单不可调整');
  for(const i of items){if(!String(i.name||'').trim())throw new Error('账单项名称必填');if(!isFinite(+i.amount))throw new Error('金额无效')}
  const t=sum(items.map(i=>+i.amount));if(t<billPaid(b)-1e-9)throw new Error('调整后账单金额不能低于已收 '+billPaid(b));if(t<0)throw new Error('账单金额不能为负');
  const before=billTotal(b);b.items=items.map(i=>({name:String(i.name).trim(),amount:r2(+i.amount),kind:i.kind||'adj',room:i.room}));syncTotal(b);log(st,b.cid,TODAY+' 10:00',by,'调整账单',`账单金额 ${before} → ${billTotal(b)}`,[]);return b}
@@ -175,7 +175,7 @@ function settleApply(st,cid,opts,by,at){const c=C(st,cid);const X=opts.X||(c.ter
  const result=r2(refund-ded-charge);
  const net=result;
  if(!c.term){c.rooms.forEach(x=>{x.out=X;c.occupants[x.r]=(c.occupants[x.r]||[]).map(o=>({...o,ended:o.ended||X}))})}
- applyAfterStatus(c,opts.afterStatus);billsOf(st,cid).forEach(b=>b.done=true);
+ applyAfterStatus(c,opts.afterStatus);billsOf(st,cid).forEach(b=>{b.done=true;b.completedAt=TODAY});
  const sid=nid(st,'s');
  const s={id:sid,cid,X,cash:p.cash,refunded:p.refunded,received:p.received,rentLines:p.rentLines,actual:p.actual,other:p.other,
   refundToTenant:refund,ded,dedr:opts.dedr||'',result:net,reason:opts.reason||(c.term&&c.term.reason)||'到期',
@@ -242,11 +242,11 @@ function renewApply(st,cid,end,rent,dep,by,at,opts={}){const c=C(st,cid);if(c.te
 function fulfillPendingRenewals(st,today,by,at){today=today||TODAY;const out=[];for(const nc of st.contracts){const po=nc.pendingOffset;if(!po||po.fulfilled||po.kind!=='renew')continue;if(nc.start>today)continue;const c=C(st,po.from);if(!c||c.voided)continue;
   let pb=st.payables.find(p=>p.renewTo===nc.id);
   if(!pb){pb={id:nid(st,'p'),cid:c.id,amount:po.settleAmount,paid:0,due:c.end,status:po.settleAmount?'待付款':'已完成',reason:'续租押金应退',renewTo:nc.id};st.payables.push(pb)}
-  const db=billsOf(st,c.id).find(b=>b.k==='dep');if(db)db.done=true;
+  const db=billsOf(st,c.id).find(b=>b.k==='dep');if(db){db.done=true;db.completedAt=today};
   if(po.useOffset&&po.indices.length){
     // 仅用结算额中按顺序可抵部分：先把应付金额截到「已付+本次拟抵」再抵，再恢复总额以保留未抵余额
     const want=r2(Math.min(po.offsetAmount||po.settleAmount,pb.amount-pb.paid));
-    if(want>0){const full=pb.amount;pb.amount=r2(pb.paid+want);applyOffset(st,pb,billsOf(st,nc.id),po.indices,at||today+' 12:00',by||po.by);pb.amount=full;pb.status=pb.paid>=pb.amount-1e-9?'已完成':pb.paid>0?'部分付款':'待付款'}
+    if(want>0){const full=pb.amount;pb.amount=r2(pb.paid+want);applyOffset(st,pb,billsOf(st,nc.id),po.indices,at||today+' 12:00',by||po.by);pb.amount=full;pb.status=pb.paid>=pb.amount-1e-9?'已完成':pb.paid>0?'付款中':'待付款'}
   }
   if(!c.term){c.rooms.forEach(x=>{x.out=c.end;c.occupants[x.r]=(c.occupants[x.r]||[]).map(o=>({...o,ended:o.ended||c.end}))});
    c.term={X:c.end,at:at||today+' 10:00',by:by||po.by||'房东',reason:'续租',afterStatus:'空房可租',settled:false,renewTo:nc.id};
@@ -256,7 +256,7 @@ function fulfillPendingRenewals(st,today,by,at){today=today||TODAY;const out=[];
 // 历史收付按稳定来源键迁移；重复加载不会产生重复流水。
 function ensureLedger(st){st.ledger=st.ledger||[];const add=(key,data)=>{if(!st.ledger.some(l=>l.key===key))st.ledger.push({id:nid(st,'l'),key,by:'房东',...data})};st.bills.forEach(b=>b.pays.forEach((p,i)=>{if(p.m==='抵扣')return;add('bill:'+b.id+':'+i,{cid:b.cid,bid:b.id,at:p.date,due:b.due,type:'租客-'+(b.k==='dep'?'押金':'租金/费用'),method:p.m||'线下收款',net:p.amount,by:p.by||'历史记录（经办未记录）'})}));st.payables.forEach(p=>{const cash=r2(p.paid-(p.offset||0));if(cash>0)add('pay:'+p.id+':'+cash,{cid:p.cid,pid:p.id,at:p.date,due:p.due,type:p.reason||'租客-退款',method:'线下付款',net:-cash,by:p.by||'历史记录（经办未记录）'})});return st.ledger}
 function validateOffset(bills,indices,available){if(!Array.isArray(indices)||new Set(indices).size!==indices.length)throw Error('抵扣选择无效');const pending=bills.map((b,i)=>({b,i})).filter(({b})=>b.pays?billOut(b)>0:billTotal(b)>0).map(x=>x.i);if(indices.some((i,k)=>i!==pending[k]))throw Error('须按押金、第1期、第2期顺序抵扣，不可跳过更早账期');if(indices.length&&available<=0)throw Error('没有可用于抵扣的待退款')}
-function applyOffset(st,p,bills,indices,at,by){if(payableStatus(p)==='已作废')throw Error('付款账单已作废');if(!st.payables.includes(p)||bills.some(b=>!st.bills.includes(b))||new Set(bills.map(b=>b.cid)).size!==1||C(st,p.cid)?.phone!==C(st,bills[0]?.cid)?.phone)throw Error('抵扣须为同一承租人的合同账款');validateOffset(bills,indices,p.amount-p.paid);let left=r2(p.amount-p.paid);for(const i of indices){const b=bills[i],a=Math.min(left,billOut(b));if(a<=0)break;b.pays.push({m:'抵扣',amount:a,date:(at||TODAY).slice(0,10),source:p.id});p.paid=r2(p.paid+a);p.offset=r2((p.offset||0)+a);left=r2(left-a);st.ledger=st.ledger||[];const pair=nid(st,'o');for(const side of [-1,1])st.ledger.push({id:nid(st,'l'),cid:side<0?p.cid:b.cid,pid:p.id,bid:b.id,at:at||TODAY,due:side<0?p.due:b.due,type:side<0?'租客-应退抵扣':'租客-'+(b.k==='dep'?'押金抵扣':'租金抵扣'),method:'抵扣（非现金）',amount:a,net:0,fulfilled:side*a,pair,by:by||'房东'})}p.status=p.paid>=p.amount?'已完成':p.paid>0?'部分付款':'待付款';return p}
+function applyOffset(st,p,bills,indices,at,by){if(payableStatus(p)==='已作废')throw Error('付款账单已作废');if(!st.payables.includes(p)||bills.some(b=>!st.bills.includes(b))||new Set(bills.map(b=>b.cid)).size!==1||C(st,p.cid)?.phone!==C(st,bills[0]?.cid)?.phone)throw Error('抵扣须为同一承租人的合同账款');validateOffset(bills,indices,p.amount-p.paid);let left=r2(p.amount-p.paid);for(const i of indices){const b=bills[i],a=Math.min(left,billOut(b));if(a<=0)break;b.pays.push({m:'抵扣',amount:a,date:(at||TODAY).slice(0,10),source:p.id});p.paid=r2(p.paid+a);p.offset=r2((p.offset||0)+a);left=r2(left-a);st.ledger=st.ledger||[];const pair=nid(st,'o');for(const side of [-1,1])st.ledger.push({id:nid(st,'l'),cid:side<0?p.cid:b.cid,pid:p.id,bid:b.id,at:at||TODAY,due:side<0?p.due:b.due,type:side<0?'租客-应退抵扣':'租客-'+(b.k==='dep'?'押金抵扣':'租金抵扣'),method:'抵扣（非现金）',amount:a,net:0,fulfilled:side*a,pair,by:by||'房东'})}p.date=(at||TODAY).slice(0,10);p.status=p.paid>=p.amount?'已完成':p.paid>0?'付款中':'待付款';return p}
 function moveIn(st,cid,r,date){const c=C(st,cid);const x=c.rooms.find(y=>y.r==r);if(x.in)throw new Error('已记录实际入住时间');if(!date||date>TODAY)throw new Error('实际入住时间不能晚于今天');x.in=date;log(st,cid,date+' 10:00','房东','记录实际入住时间',`${addrOf(c,r)} 实际入住时间 ${date}`,[])}
 function addOcc(st,cid,r,phone,self){const c=C(st,cid);if(!/^1\d{10}$/.test(phone))throw new Error('请输入 11 位手机号');c.occupants[r].push({phone,self:!!self,how:'手机号',st:'已生效'})}
 function agreeOcc(st,cid,r,i){C(st,cid).occupants[r][i].st='已生效'}
@@ -270,7 +270,7 @@ function setWorkOrderStatus(st,wid,status,by){const w=(st.workOrders||[]).find(x
 function workOrdersOf(st,r){return (st.workOrders||[]).filter(w=>!r||w.r===r).slice().sort((a,b)=>b.created.localeCompare(a.created))}
 
 function closeForResign(st,cid,by,at,newCid){const c=C(st,cid);if(!c||c.voided)return;c.voided=true;c.voidedAt=(at||TODAY).slice(0,10);c.voidedBy=by||'房东';c.resignTo=newCid||null;
- billsOf(st,cid).forEach(b=>{b.done=true;b.excluded=true});
+ billsOf(st,cid).forEach(b=>{b.done=true;b.excluded=true;b.voidedAt=TODAY});
  log(st,cid,at,by,'重签关闭',`原合同作废 · 新合同 ${newCid||''}`,[],{newCid})}
 function resignApply(st,oldCid,f,at){const old=C(st,oldCid);if(!old)throw new Error('原合同不存在');if(old.voided||old.removed)throw new Error('原合同已关闭');// 生效中/已到期/已终止均可重签；已作废不可
  if(old.voided)throw new Error('已作废合同不能重签');
@@ -284,7 +284,7 @@ function batchCollect(st,bids,date,by){if(!bids||!bids.length)throw new Error('�
  const out=[];for(const id of bids){const b=st.bills.find(x=>x.id==id);if(!b)continue;const o=billOut(b);if(o>0&&itemsEditable(b)){b.pays.push({m:'线下收款',amount:o,date,by:by||'房东'});out.push(b.id)}}
  if(!out.length)throw new Error('没有可收款的待处理账单');log(st,st.bills.find(b=>b.id==out[0]).cid,date+' 10:00',by,'批量收款',`共 ${out.length} 笔`,[]);ensureLedger(st);return out}
 function resetBills(st,cid,by){const c=C(st,cid);if(!c||c.voided||c.term)throw new Error('合同不可重置账单');
- // 已收/部分收款/已完成保留；删除未收款的租金账单后按条款重算未到期部分
+ // 已有到账或已完成的账单保留；删除未收款的租金账单后按条款重算未到期部分
  const keep=billsOf(st,cid).filter(b=>b.k!='rent'||billPaid(b)>0||b.done);
  const drop=billsOf(st,cid).filter(b=>b.k=='rent'&&billPaid(b)<=0&&!b.done);
  drop.forEach(b=>{const i=st.bills.indexOf(b);if(i>=0)st.bills.splice(i,1)});
@@ -295,7 +295,7 @@ function resetBills(st,cid,by){const c=C(st,cid);if(!c||c.voided||c.term)throw n
   // also skip if period entirely in past and somehow missing? still regenerate unpaid
   b.id=nid(st,'b');b.cid=c.id;b.pays=[];b.done=false;syncTotal(b);st.bills.push(b)});
  // 已收的租金账单标为已完成以便进「已完成」区（用户：keep already-paid as 已完成）
- keep.filter(b=>b.k=='rent'&&billPaid(b)>0).forEach(b=>{b.done=true});
+ keep.filter(b=>b.k=='rent'&&billPaid(b)>=billTotal(b)-1e-9).forEach(b=>{b.done=true;b.completedAt=b.pays.map(p=>p.date).filter(Boolean).sort().pop()||TODAY});
  log(st,cid,TODAY+' 10:00',by,'重置账单','按合同条款重算未收租金账单，已收款账单保留为已完成',[]);return billsOf(st,cid)}
 function softDelete(st,cid,by){const c=C(st,cid);if(!c)throw new Error('合同不存在');if(c.removed)return c;c.removed=true;c.removedAt=TODAY;c.removedBy=by||'房东';
  log(st,cid,TODAY+' 10:00',by,'删除合同','合同已从列表移除（软删除）',[]);return c}
@@ -324,7 +324,7 @@ function cancelBooking(st,id,by){const b=bookingsOf(st).find(b=>b.id===id);if(!b
 function convertBooking(st,id){const b=bookingsOf(st).find(b=>b.id===id);if(!b||b.status!=='有效')throw Error('预定无效');return {r:b.r,who:b.who,phone:b.phone,bookingId:b.id}}
 function vacantRooms(st){return allRooms().filter(x=>roomStatus(st,x.r)==='空房可租')}
 function batchPrice(st,rs,price){if(!rs.length)throw Error('请选择房间');rs.forEach(r=>{if(!room(r))throw Error('房间不存在')});const p={monthly:+price.monthly,depMode:price.depMode,dep:+price.dep};if(!(p.monthly>0)||!Number.isFinite(p.monthly)||!Number.isFinite(p.dep)||p.dep<0||!['months','amount'].includes(p.depMode)||(p.depMode==='months'&&!Number.isInteger(p.dep)))throw Error('价格或押金无效');return rs.map(r=>editRoom(st,r,{price:{...p}}))}
-function voidBill(st,id,by,reason){const b=st.bills.find(b=>b.id===id);if(!b||b.excluded)throw Error('账单不存在或已作废');b.excluded=true;b.done=true;log(st,b.cid,TODAY,by,'作废账单',reason||'作废账单',[]);return b}
+function voidBill(st,id,by,reason){const b=st.bills.find(b=>b.id===id);if(!b||b.excluded)throw Error('账单不存在或已作废');b.excluded=true;b.done=true;b.voidedAt=TODAY;log(st,b.cid,TODAY,by,'作废账单',reason||'作废账单',[]);return b}
 function createInvoice(st,o){if(!C(st,o.cid)||!String(o.title||'').trim()||!Number.isFinite(+o.amount)||!(+o.amount>0))throw Error('请选择合同并填写抬头、有效金额');if(o.bid&&!st.bills.some(b=>b.id===o.bid&&b.cid===o.cid&&billPaid(b)>0))throw Error('请选择本合同已收款账单');const i={...o,amount:r2(+o.amount),id:nid(st,'inv'),status:'待开',created:TODAY};(st.invoices||(st.invoices=[])).push(i);return i}
 function createOwnerContract(st,o){if(!BUILDINGS[o.building]||!String(o.who||'').trim()||!/^1\d{10}$/.test(o.phone||'')||!o.start||!o.end||o.end<o.start)throw Error('请填写楼栋、业主、手机号及有效租期');if(o.rent!==''&&o.rent!=null&&(!Number.isFinite(+o.rent)||+o.rent<0))throw Error('租金无效');const c={...o,id:nid(st,'oc'),status:'生效中',created:TODAY};(st.ownerContracts||(st.ownerContracts=[])).push(c);return c}
 function terminateOwnerContract(st,id){const c=(st.ownerContracts||[]).find(c=>c.id===id);if(!c||c.status!=='生效中')throw Error('合同不存在或已终止');c.status='已终止';return c}
