@@ -8,6 +8,7 @@ for(const c of s.contracts){
  ok(!JSON.stringify(c).match(/H\d{3}/),'no H-code');
  const bl=K.billsOf(s,c.id);const rb=bl.filter(b=>b.k=='rent');
  ok(rb[0].s==c.start&&rb[rb.length-1].e==c.end,'periods cover '+c.who);
+ const dep=bl.find(b=>b.k=='dep');if(dep)ok(dep.s==c.start&&dep.e==c.end,'dep period=contract '+c.who);
  for(let i=1;i<rb.length;i++)ok(K.addD(rb[i-1].e,1)==rb[i].s,'contiguous');
  const rentTot=K.sum(rb.map(b=>(b.items.find(i=>i.kind=='rent')||{amount:0}).amount));
  ok(Math.abs(rentTot-K.rentIn(c.rent,c.start,c.start,c.end))<0.02,'contract rent total '+c.who);
@@ -199,7 +200,15 @@ console.log('seed checks',pass,'pass',fail,'fail');
  ok(cbt.includes('租金·')&&!cbt.includes('张三')&&!cbt.includes('中山南路'),'contract bill title no name/address');
  ok((await txt()).includes('待处理')&&(await txt()).includes('已完成')&&(await txt()).includes('合计'),'pending/done sections');
  ok(!!(await pg.$('#btn-add-bill'))&&!!(await pg.$('#btn-batch-collect'))&&!!(await pg.$('#btn-reset-bills')),'bill tab actions');
+ ok((await pg.$$eval('.tabs span',es=>es.map(e=>e.textContent))).join('|')==='合同|账单|承租方|入住人|物业交割|设备账户','contract tabs 承租方');
  ok(!(await txt()).includes('办理记录'),'no 办理记录 tab');
+ ok(!(await pg.$('#cstatus')),'bills tab hides status strip');
+ ok(!!(await pg.$('.call-btn'))&&!!(await pg.$('.icon-copy')),'header call/copy');
+ const cards=await pg.$$eval('.bc',es=>es.map(e=>({t:e.textContent,hasTag:!!e.querySelector('.tag')})));
+ ok(cards.length&&cards.every(c=>!c.hasTag)&&!cards.some(c=>/待收|已完成|完成日期/.test(c.t)),'contract cards no status/完日期');
+ const depTxt=(await pg.$$eval('.bc',es=>es.map(e=>e.textContent).find(t=>t.includes('押金'))))||'';
+ ok(depTxt.includes('账期：'+z.start+' 至 '+z.end),'dep 账期 uses contract dates');
+
  await G('contract?id='+z.id+'&tab=物业交割');ok((await txt()).includes('第一版不实现'),'物业交割 stub');
  await G('contract?id='+z.id+'&tab=合同');ok(!!(await pg.$('#btn-checkout'))&&!(await pg.$('#btn-swap'))&&!!(await pg.$('#btn-resign')),'multi: checkout+resign, no swap');
  // collect + edit

@@ -99,7 +99,7 @@ function validateReg(st,f){const e=[];if(f.bookingId){const b=bookingsOf(st).fin
  const em=f.emergency;if(em&&[em.rel,em.phone,em.name].some(Boolean)&&!(em.rel&&em.name&&/^1\d{10}$/.test(em.phone||'')))e.push('紧急联系人：关系、手机号、姓名须完整填写');
  if(f.start&&f.end)(f.rooms||[]).forEach(x=>{const k=conflicts(st,x.r,f.start,f.end,f.resignFrom);if(k.length)e.push(`${bldOf(x.r)}${x.r} 租期冲突：与 ${k[0].start} 至 ${k[0].end} 的未退租合同重叠`)});
  return e}
-function buildBills(c){const out=[{k:'dep',n:0,s:null,e:null,due:c.start,items:[{name:'押金',amount:r2(c.dep),kind:'dep'}]}];
+function buildBills(c){const out=[{k:'dep',n:0,s:c.start,e:c.end,due:c.start,items:[{name:'押金',amount:r2(c.dep),kind:'dep'}]}];
  periods(c.start,c.end,c.payN).forEach(([s,e],i)=>{const items=[{name:'租金',amount:rentIn(c.rent,c.start,s,e),kind:'rent'}];
   (c.fees||[]).forEach(f=>{if(f.mode=='随租金付')items.push({name:f.name,amount:rentIn(f.amount,c.start,s,e),kind:'fee'});else if(i==0)items.push({name:f.name,amount:r2(f.amount),kind:'fee'})});
   out.push({k:'rent',n:i+1,s,e,due:dueOf(c.payRule,s,i,c.start),items})});return out}
